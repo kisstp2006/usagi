@@ -660,8 +660,8 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "sola-raylib"
-version = "6.0.0-dev.0"
-source = "git+https://github.com/brettchalupa/sola-raylib.git#32b357f067b741f52b28c19f385ead45814acb98"
+version = "6.0.0"
+source = "git+https://github.com/brettchalupa/sola-raylib.git#b0e05e73283acdd910b1765565a3bd4bc3f21239"
 dependencies = [
  "cfg-if",
  "paste",
@@ -672,8 +672,8 @@ dependencies = [
 
 [[package]]
 name = "sola-raylib-sys"
-version = "6.0.0-dev.0"
-source = "git+https://github.com/brettchalupa/sola-raylib.git#32b357f067b741f52b28c19f385ead45814acb98"
+version = "6.0.0"
+source = "git+https://github.com/brettchalupa/sola-raylib.git#b0e05e73283acdd910b1765565a3bd4bc3f21239"
 dependencies = [
  "bindgen",
  "cc",
