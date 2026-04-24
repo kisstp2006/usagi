@@ -6,6 +6,80 @@ is inspired by Pico-8.
 
 Uses Lua 5.4.
 
+## Project layout
+
+A Usagi game is either a single `.lua` file or a directory with a `main.lua` in
+it. Optional assets live alongside:
+
+```
+my_game/
+  main.lua        -- required: your game
+  sprites.png     -- optional: 16×16 sprite sheet (PNG with alpha)
+  sfx/            -- optional: .wav files, file stems become sfx names
+    jump.wav
+    coin.wav
+```
+
+Run with `cargo run -- path/to/my_game` (or a bare `.lua` file).
+
+## Lua API
+
+### Callbacks
+
+Define any of these as globals; Usagi calls them:
+
+- `_init()` — once at start, and when the user presses **F5**. Put state setup
+  here.
+- `_update(dt)` — each frame, before draw. `dt` is seconds since last frame.
+- `_draw(dt)` — each frame, after update. `dt` same as above.
+
+### `gfx`
+
+Drawing. Positions are in game-space pixels (320×180). Colors are palette
+indices 0-15; use the named constants.
+
+- `gfx.clear(color)` — fill the screen.
+- `gfx.rect(x, y, w, h, color)` — filled rectangle.
+- `gfx.text(text, x, y, color)` — default font, 8px tall.
+- `gfx.spr(index, x, y)` — draw the 16×16 sprite at `index` (1 = top-left) from
+  `sprites.png`.
+- `gfx.COLOR_BLACK`, `COLOR_DARK_BLUE`, `COLOR_DARK_PURPLE`, `COLOR_DARK_GREEN`,
+  `COLOR_BROWN`, `COLOR_DARK_GRAY`, `COLOR_LIGHT_GRAY`, `COLOR_WHITE`,
+  `COLOR_RED`, `COLOR_ORANGE`, `COLOR_YELLOW`, `COLOR_GREEN`, `COLOR_BLUE`,
+  `COLOR_INDIGO`, `COLOR_PINK`, `COLOR_PEACH` — the Pico-8 palette, indices
+  0-15.
+
+### `input`
+
+Keyboard. Key codes are the `input.LEFT`/etc. constants; don't pass raw
+keycodes.
+
+- `input.pressed(key)` — true only the frame the key first went down. Use for
+  one-shot actions (fire, jump, menu select).
+- `input.down(key)` — true while the key is held. Use for movement.
+- `input.LEFT`, `RIGHT`, `UP`, `DOWN`, `A` (Z key), `B` (X key).
+
+### `sfx`
+
+- `sfx.play(name)` — play `sfx/<name>.wav`. Unknown names silently no-op.
+  Playing a sound while it's already playing restarts it.
+
+### `usagi`
+
+Engine-level info.
+
+- `usagi.GAME_W`, `usagi.GAME_H` — game render dimensions (320, 180).
+
+### Indexing
+
+Sequence-style APIs (`gfx.spr`, and any future sound/tile indexing) are
+**1-based** to match Lua conventions (`ipairs`, `t[1]`, `string.sub`).
+`gfx.spr(1, ...)` draws the top-left sprite.
+
+Enum-like constants (palette colors, key codes) keep their conventional
+numbering. `gfx.COLOR_RED` is 8 because that's its Pico-8 number, not because
+it's the 9th color.
+
 ## Live reload
 
 Usagi watches the running script file and re-executes it when you save. The new

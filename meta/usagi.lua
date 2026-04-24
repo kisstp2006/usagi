@@ -49,6 +49,15 @@ function gfx.rect(x, y, w, h, color) end
 ---@param y     number
 function gfx.spr(index, x, y) end
 
+---@class Usagi.Sfx
+sfx = {}
+
+---Plays a sound effect by name. Names are file stems from the `sfx/`
+---directory next to the game's main .lua (e.g. `sfx/jump.wav` → "jump").
+---Unknown names silently no-op. Calling while already playing restarts.
+---@param name string
+function sfx.play(name) end
+
 ---@class Usagi.Input
 ---@field LEFT  integer
 ---@field RIGHT integer
