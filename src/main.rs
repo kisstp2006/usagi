@@ -77,6 +77,16 @@ fn load_script(lua: &Lua, path: &str) -> LuaResult<()> {
     lua.load(&source).set_name(path).exec()
 }
 
+/// Logs a Lua error with a label and swallows it. Used around every call
+/// into user Lua so that a typo, nil-call, or runtime error doesn't tear
+/// down the process — the session stays alive and the user can fix the
+/// file and save to reload.
+fn log_err(label: &str, result: LuaResult<()>) {
+    if let Err(e) = result {
+        eprintln!("[usagi] {} error: {}", label, e);
+    }
+}
+
 /// Install constant tables (`gfx`, `input`, `usagi`) on the Lua globals.
 /// Per-frame closures (gfx.clear, input.pressed, ...) are installed inside
 /// `lua.scope` blocks since they borrow frame-local Rust state.
@@ -123,10 +133,12 @@ fn main() -> LuaResult<()> {
 
     let lua = Lua::new();
     setup_api(&lua)?;
-    load_script(&lua, &script_path)?;
+    // Initial load errors are non-fatal: boot with an empty session and let
+    // the user fix the file + save to trigger live reload.
+    log_err("initial load", load_script(&lua, &script_path));
 
     if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
-        init.call::<()>(())?;
+        log_err("_init", init.call::<()>(()));
     }
     let mut update: Option<LuaFunction> = lua.globals().get("_update").ok();
     let mut draw: Option<LuaFunction> = lua.globals().get("_draw").ok();
@@ -182,64 +194,74 @@ fn main() -> LuaResult<()> {
         let screen_h = rl.get_screen_height();
         let fps = rl.get_fps();
 
-        // Update phase: input.pressed borrows rl (immutable — is_key_down is &self)
+        // Update phase: input.pressed / input.down borrow rl (immutable — the
+        // raylib calls are &self). Errors from user Lua are logged and swallowed
+        // so a broken _update doesn't kill the session.
         if let Some(ref update_fn) = update {
-            let input_tbl: LuaTable = lua.globals().get("input")?;
             let rl_ref = &rl;
-            lua.scope(|scope| {
-                let pressed = scope.create_function(|_, key: u32| {
-                    Ok(key_from_u32(key).is_some_and(|k| rl_ref.is_key_pressed(k)))
-                })?;
-                input_tbl.set("pressed", pressed)?;
-                let down = scope.create_function(|_, key: u32| {
-                    Ok(key_from_u32(key).is_some_and(|k| rl_ref.is_key_down(k)))
-                })?;
-                input_tbl.set("down", down)?;
-                update_fn.call::<()>(dt)?;
-                Ok(())
-            })?;
+            log_err(
+                "_update",
+                lua.scope(|scope| {
+                    let input_tbl: LuaTable = lua.globals().get("input")?;
+                    let pressed = scope.create_function(|_, key: u32| {
+                        Ok(key_from_u32(key).is_some_and(|k| rl_ref.is_key_pressed(k)))
+                    })?;
+                    input_tbl.set("pressed", pressed)?;
+                    let down = scope.create_function(|_, key: u32| {
+                        Ok(key_from_u32(key).is_some_and(|k| rl_ref.is_key_down(k)))
+                    })?;
+                    input_tbl.set("down", down)?;
+                    update_fn.call::<()>(dt)?;
+                    Ok(())
+                }),
+            );
         }
 
-        // Draw phase: gfx.* share d_rt via RefCell (multiple draw fns need mut access)
+        // Draw phase: gfx.* share d_rt via RefCell (multiple draw fns need mut
+        // access). Errors from user Lua are logged and swallowed; the partial
+        // RT contents still get blitted so the window stays alive.
         {
             let mut d_rt = rl.begin_texture_mode(&thread, &mut rt);
             if let Some(ref draw_fn) = draw {
-                let gfx_tbl: LuaTable = lua.globals().get("gfx")?;
                 let d_rt_cell = std::cell::RefCell::new(&mut d_rt);
-                lua.scope(|scope| {
-                    let clear = scope.create_function(|_, c: i32| {
-                        d_rt_cell.borrow_mut().clear_background(palette(c));
-                        Ok(())
-                    })?;
-                    let text =
-                        scope.create_function(|_, (s, x, y, c): (String, f32, f32, i32)| {
-                            d_rt_cell.borrow_mut().draw_text(
-                                &s,
-                                x.round() as i32,
-                                y.round() as i32,
-                                8,
-                                palette(c),
-                            );
+                log_err(
+                    "_draw",
+                    lua.scope(|scope| {
+                        let gfx_tbl: LuaTable = lua.globals().get("gfx")?;
+                        let clear = scope.create_function(|_, c: i32| {
+                            d_rt_cell.borrow_mut().clear_background(palette(c));
                             Ok(())
                         })?;
-                    let rect = scope.create_function(
-                        |_, (x, y, w, h, c): (f32, f32, f32, f32, i32)| {
-                            d_rt_cell.borrow_mut().draw_rectangle(
-                                x.round() as i32,
-                                y.round() as i32,
-                                w.round() as i32,
-                                h.round() as i32,
-                                palette(c),
-                            );
-                            Ok(())
-                        },
-                    )?;
-                    gfx_tbl.set("clear", clear)?;
-                    gfx_tbl.set("text", text)?;
-                    gfx_tbl.set("rect", rect)?;
-                    draw_fn.call::<()>(dt)?;
-                    Ok(())
-                })?;
+                        let text =
+                            scope.create_function(|_, (s, x, y, c): (String, f32, f32, i32)| {
+                                d_rt_cell.borrow_mut().draw_text(
+                                    &s,
+                                    x.round() as i32,
+                                    y.round() as i32,
+                                    8,
+                                    palette(c),
+                                );
+                                Ok(())
+                            })?;
+                        let rect = scope.create_function(
+                            |_, (x, y, w, h, c): (f32, f32, f32, f32, i32)| {
+                                d_rt_cell.borrow_mut().draw_rectangle(
+                                    x.round() as i32,
+                                    y.round() as i32,
+                                    w.round() as i32,
+                                    h.round() as i32,
+                                    palette(c),
+                                );
+                                Ok(())
+                            },
+                        )?;
+                        gfx_tbl.set("clear", clear)?;
+                        gfx_tbl.set("text", text)?;
+                        gfx_tbl.set("rect", rect)?;
+                        draw_fn.call::<()>(dt)?;
+                        Ok(())
+                    }),
+                );
             }
             d_rt.draw_text(&format!("FPS: {}", fps), 0, 0, 8, Color::GREEN);
         }

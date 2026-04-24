@@ -15,16 +15,16 @@ function _init()
 end
 
 function _update(dt)
-  if input.pressed(input.LEFT) then
+  if input.down(input.LEFT) then
     state.x = state.x - state.spd * dt
   end
-  if input.pressed(input.RIGHT) then
+  if input.down(input.RIGHT) then
     state.x = state.x + state.spd * dt
   end
-  if input.pressed(input.DOWN) then
+  if input.down(input.DOWN) then
     state.y = state.y + state.spd * dt
   end
-  if input.pressed(input.UP) then
+  if input.down(input.UP) then
     state.y = state.y - state.spd * dt
   end
 end
