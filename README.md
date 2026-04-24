@@ -60,13 +60,24 @@ indices 0-15; use the named constants.
 
 ### `input`
 
-Keyboard. Key codes are the `input.LEFT`/etc. constants; don't pass raw
-keycodes.
+Abstract input actions. Each action is a union over keyboard, gamepad buttons,
+and the left analog stick; the first connected gamepad is used.
 
-- `input.pressed(key)` — true only the frame the key first went down. Use for
-  one-shot actions (fire, jump, menu select).
-- `input.down(key)` — true while the key is held. Use for movement.
-- `input.LEFT`, `RIGHT`, `UP`, `DOWN`, `A` (Z key), `B` (X key).
+- `input.pressed(action)` — true only the frame the action first went down. Use
+  for one-shot actions (fire, jump, menu select).
+- `input.down(action)` — true while the action is held. Use for movement.
+
+| Action    | Keyboard        | Gamepad                                          |
+| --------- | --------------- | ------------------------------------------------ |
+| `LEFT`    | arrow left / A  | dpad left / left stick left                      |
+| `RIGHT`   | arrow right / D | dpad right / left stick right                    |
+| `UP`      | arrow up / W    | dpad up / left stick up                          |
+| `DOWN`    | arrow down / S  | dpad down / left stick down                      |
+| `CONFIRM` | Z / J           | south + west face (Xbox A/X, PS Cross/Square)    |
+| `CANCEL`  | X / K           | east + north face (Xbox B/Y, PS Circle/Triangle) |
+
+`input.pressed` is edge-detected on keyboard and gamepad buttons but not on
+analog sticks; track stick state in Lua if you need that.
 
 ### `sfx`
 

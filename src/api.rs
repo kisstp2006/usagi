@@ -2,9 +2,11 @@
 //! with constants. The per-frame closures (gfx.clear, input.pressed, etc.)
 //! live in the game loop because they need to borrow frame-local state.
 
+use crate::input::{
+    ACTION_CANCEL, ACTION_CONFIRM, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP,
+};
 use crate::{GAME_HEIGHT, GAME_WIDTH};
 use mlua::prelude::*;
-use sola_raylib::prelude::*;
 
 /// Installs the Lua-facing globals: `gfx`, `input`, `sfx`, `usagi`. Each is a
 /// table with any constants it owns. Per-frame function members (e.g.
@@ -32,12 +34,12 @@ pub fn setup_api(lua: &Lua) -> LuaResult<()> {
     lua.globals().set("gfx", gfx)?;
 
     let input = lua.create_table()?;
-    input.set("LEFT", KeyboardKey::KEY_LEFT as u32)?;
-    input.set("RIGHT", KeyboardKey::KEY_RIGHT as u32)?;
-    input.set("UP", KeyboardKey::KEY_UP as u32)?;
-    input.set("DOWN", KeyboardKey::KEY_DOWN as u32)?;
-    input.set("A", KeyboardKey::KEY_Z as u32)?;
-    input.set("B", KeyboardKey::KEY_X as u32)?;
+    input.set("LEFT", ACTION_LEFT)?;
+    input.set("RIGHT", ACTION_RIGHT)?;
+    input.set("UP", ACTION_UP)?;
+    input.set("DOWN", ACTION_DOWN)?;
+    input.set("CONFIRM", ACTION_CONFIRM)?;
+    input.set("CANCEL", ACTION_CANCEL)?;
     lua.globals().set("input", input)?;
 
     let sfx = lua.create_table()?;
@@ -68,7 +70,7 @@ pub fn record_err(state: &mut Option<String>, label: &str, result: LuaResult<()>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::input::key_from_u32;
+    use crate::input::is_valid_action;
     use crate::palette::palette;
 
     #[test]
@@ -86,9 +88,10 @@ mod tests {
         assert_eq!(gfx.get::<i32>("COLOR_RED").unwrap(), 8);
         assert_eq!(gfx.get::<i32>("COLOR_PEACH").unwrap(), 15);
 
-        // Input constants just need to be present; values are raylib keycodes.
+        // Input constants just need to be present; values are action IDs.
         assert!(input.get::<u32>("LEFT").is_ok());
-        assert!(input.get::<u32>("A").is_ok());
+        assert!(input.get::<u32>("CONFIRM").is_ok());
+        assert!(input.get::<u32>("CANCEL").is_ok());
 
         // sfx is registered but empty of fields at static-setup time.
         assert!(sfx.get::<LuaValue>("play").unwrap().is_nil());
@@ -157,11 +160,12 @@ mod tests {
         );
     }
 
-    /// Every `input.*` constant must be recognised by `key_from_u32`.
-    /// Guards against adding a new input key without teaching
-    /// `key_from_u32`, which would make `input.down(input.X)` always false.
+    /// Every `input.*` constant must map to a valid action in
+    /// `crate::input`. Guards against adding a new input action to
+    /// `setup_api` without extending `BINDINGS`, which would make
+    /// `input.down(input.X)` always return false.
     #[test]
-    fn every_input_constant_round_trips_through_key_from_u32() {
+    fn every_input_constant_is_a_valid_action() {
         let lua = Lua::new();
         setup_api(&lua).unwrap();
         let input: LuaTable = lua.globals().get("input").unwrap();
@@ -169,14 +173,14 @@ mod tests {
         for pair in input.pairs::<String, u32>() {
             let (name, code) = pair.unwrap();
             assert!(
-                key_from_u32(code).is_some(),
-                "input.{name} = {code} is not recognised by key_from_u32",
+                is_valid_action(code),
+                "input.{name} = {code} is not a valid action",
             );
             checked += 1;
         }
         assert!(
             checked >= 6,
-            "expected at least 6 input.* keys, got {checked}"
+            "expected at least 6 input.* actions, got {checked}"
         );
     }
 
@@ -218,7 +222,8 @@ mod tests {
                 gfx.text("hi", 0, 0, gfx.COLOR_WHITE)
                 gfx.spr(1, usagi.GAME_W / 2, usagi.GAME_H / 2)
                 assert(type(input.pressed(input.LEFT)) == "boolean")
-                assert(type(input.down(input.A)) == "boolean")
+                assert(type(input.down(input.CONFIRM)) == "boolean")
+                assert(type(input.pressed(input.CANCEL)) == "boolean")
                 sfx.play("missing")
                 "#,
             )

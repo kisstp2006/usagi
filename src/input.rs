@@ -1,22 +1,142 @@
-//! Input helpers. Maps raw u32 key codes (as stored on the Lua `input` table)
-//! back into the raylib `KeyboardKey` enum.
+//! Abstract input actions. User Lua references actions via `input.LEFT`
+//! etc. (integer IDs); at runtime each action is a union over keyboard
+//! keys, gamepad buttons, and analog-stick directions. Adding a binding
+//! only requires extending the `BINDINGS` table.
 
 use sola_raylib::prelude::*;
 
-/// Converts a u32 into a `KeyboardKey`, or None for unknown codes.
-/// Only the keys we expose via the `input.*` constants are recognised; this
-/// acts as a whitelist so user Lua can't poke arbitrary key codes.
-pub fn key_from_u32(k: u32) -> Option<KeyboardKey> {
-    use KeyboardKey::*;
-    match k {
-        x if x == KEY_LEFT as u32 => Some(KEY_LEFT),
-        x if x == KEY_RIGHT as u32 => Some(KEY_RIGHT),
-        x if x == KEY_UP as u32 => Some(KEY_UP),
-        x if x == KEY_DOWN as u32 => Some(KEY_DOWN),
-        x if x == KEY_Z as u32 => Some(KEY_Z),
-        x if x == KEY_X as u32 => Some(KEY_X),
-        _ => None,
+// Action IDs. Stable integers; `setup_api` exposes these as `input.LEFT`
+// etc. on the Lua side.
+pub const ACTION_LEFT: u32 = 1;
+pub const ACTION_RIGHT: u32 = 2;
+pub const ACTION_UP: u32 = 3;
+pub const ACTION_DOWN: u32 = 4;
+pub const ACTION_CONFIRM: u32 = 5;
+pub const ACTION_CANCEL: u32 = 6;
+
+/// Deadzone for analog-stick direction checks. Values within +/- this
+/// range count as centered.
+const STICK_DEADZONE: f32 = 0.3;
+
+/// Bindings for a single action: the keyboard keys, gamepad buttons, and
+/// analog-axis directions that all count as "this action is pressed".
+struct Binding {
+    keys: &'static [KeyboardKey],
+    buttons: &'static [GamepadButton],
+    /// (axis, sign) pairs. Sign is -1 for "tilt negative" or +1 for "tilt
+    /// positive"; either direction past the deadzone triggers the action.
+    axes: &'static [(GamepadAxis, i8)],
+}
+
+/// Indexed by action_id - 1. The source of truth for the input map.
+/// Add a new row and a matching `ACTION_*` constant to introduce a new
+/// action; `is_valid_action` / `action_down` / `action_pressed` will
+/// automatically include it.
+const BINDINGS: [Binding; 6] = [
+    // LEFT
+    Binding {
+        keys: &[KeyboardKey::KEY_LEFT, KeyboardKey::KEY_A],
+        buttons: &[GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_LEFT],
+        axes: &[(GamepadAxis::GAMEPAD_AXIS_LEFT_X, -1)],
+    },
+    // RIGHT
+    Binding {
+        keys: &[KeyboardKey::KEY_RIGHT, KeyboardKey::KEY_D],
+        buttons: &[GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_RIGHT],
+        axes: &[(GamepadAxis::GAMEPAD_AXIS_LEFT_X, 1)],
+    },
+    // UP
+    Binding {
+        keys: &[KeyboardKey::KEY_UP, KeyboardKey::KEY_W],
+        buttons: &[GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_UP],
+        axes: &[(GamepadAxis::GAMEPAD_AXIS_LEFT_Y, -1)],
+    },
+    // DOWN
+    Binding {
+        keys: &[KeyboardKey::KEY_DOWN, KeyboardKey::KEY_S],
+        buttons: &[GamepadButton::GAMEPAD_BUTTON_LEFT_FACE_DOWN],
+        axes: &[(GamepadAxis::GAMEPAD_AXIS_LEFT_Y, 1)],
+    },
+    // CONFIRM: Z or J on keyboard; the "positive" face buttons on gamepad
+    // (south + west: Xbox A/X, PS Cross/Square).
+    Binding {
+        keys: &[KeyboardKey::KEY_Z, KeyboardKey::KEY_J],
+        buttons: &[
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_DOWN,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_LEFT,
+        ],
+        axes: &[],
+    },
+    // CANCEL: X or K on keyboard; the "negative" face buttons on gamepad
+    // (east + north: Xbox B/Y, PS Circle/Triangle).
+    Binding {
+        keys: &[KeyboardKey::KEY_X, KeyboardKey::KEY_K],
+        buttons: &[
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_RIGHT,
+            GamepadButton::GAMEPAD_BUTTON_RIGHT_FACE_UP,
+        ],
+        axes: &[],
+    },
+];
+
+fn binding(action: u32) -> Option<&'static Binding> {
+    BINDINGS.get(action.checked_sub(1)? as usize)
+}
+
+/// True if `action` is one of the exposed `ACTION_*` constants. Currently
+/// only consumed by tests, but kept public for future runtime validation.
+#[allow(dead_code)]
+pub fn is_valid_action(action: u32) -> bool {
+    binding(action).is_some()
+}
+
+/// True while any source bound to `action` is held.
+pub fn action_down(rl: &RaylibHandle, action: u32) -> bool {
+    let Some(b) = binding(action) else {
+        return false;
+    };
+    for k in b.keys {
+        if rl.is_key_down(*k) {
+            return true;
+        }
     }
+    if rl.is_gamepad_available(0) {
+        for btn in b.buttons {
+            if rl.is_gamepad_button_down(0, *btn) {
+                return true;
+            }
+        }
+        for (axis, sign) in b.axes {
+            let v = rl.get_gamepad_axis_movement(0, *axis);
+            if (*sign < 0 && v < -STICK_DEADZONE) || (*sign > 0 && v > STICK_DEADZONE) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// True the frame any key or button bound to `action` transitions to
+/// pressed. Analog sticks aren't edge-detected; if you want "just pushed
+/// the stick past the deadzone" semantics, track the last frame yourself
+/// using `action_down`.
+pub fn action_pressed(rl: &RaylibHandle, action: u32) -> bool {
+    let Some(b) = binding(action) else {
+        return false;
+    };
+    for k in b.keys {
+        if rl.is_key_pressed(*k) {
+            return true;
+        }
+    }
+    if rl.is_gamepad_available(0) {
+        for btn in b.buttons {
+            if rl.is_gamepad_button_pressed(0, *btn) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -24,34 +144,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn recognises_exposed_keys() {
-        use KeyboardKey::*;
-        for k in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN, KEY_Z, KEY_X] {
-            assert_eq!(
-                key_from_u32(k as u32),
-                Some(k),
-                "key {k:?} should round-trip"
-            );
+    fn all_known_actions_are_valid() {
+        for a in [
+            ACTION_LEFT,
+            ACTION_RIGHT,
+            ACTION_UP,
+            ACTION_DOWN,
+            ACTION_CONFIRM,
+            ACTION_CANCEL,
+        ] {
+            assert!(is_valid_action(a), "action {a} should be valid");
         }
     }
 
     #[test]
-    fn rejects_unexposed_keys() {
-        use KeyboardKey::*;
-        // Keys that exist in raylib but we don't expose should return None.
-        for k in [KEY_SPACE, KEY_ENTER, KEY_A, KEY_B] {
-            assert_eq!(
-                key_from_u32(k as u32),
-                None,
-                "key {k:?} should not be recognised"
-            );
-        }
+    fn unknown_actions_are_not_valid() {
+        assert!(!is_valid_action(0));
+        assert!(!is_valid_action(7));
+        assert!(!is_valid_action(99));
+        assert!(!is_valid_action(u32::MAX));
     }
 
+    /// Each action should have at least one source bound, otherwise
+    /// `action_down` / `action_pressed` can never be true.
     #[test]
-    fn rejects_garbage_codes() {
-        assert_eq!(key_from_u32(0), None);
-        assert_eq!(key_from_u32(u32::MAX), None);
-        assert_eq!(key_from_u32(99999), None);
+    fn every_action_has_at_least_one_binding() {
+        for (i, b) in BINDINGS.iter().enumerate() {
+            assert!(
+                !b.keys.is_empty() || !b.buttons.is_empty() || !b.axes.is_empty(),
+                "action {} has no bindings",
+                i + 1
+            );
+        }
     }
 }

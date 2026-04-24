@@ -3,7 +3,7 @@
 
 use crate::api::{record_err, setup_api};
 use crate::assets::{SfxLibrary, SpriteSheet, load_script};
-use crate::input::key_from_u32;
+use crate::input;
 use crate::palette::palette;
 use crate::render::{draw_error_overlay, draw_render_target};
 use crate::{GAME_HEIGHT, GAME_WIDTH};
@@ -155,13 +155,12 @@ pub fn run(script_path: &str, dev: bool) -> crate::Result<()> {
                 "_update",
                 lua.scope(|scope| {
                     let input_tbl: LuaTable = lua.globals().get("input")?;
-                    let pressed = scope.create_function(|_, key: u32| {
-                        Ok(key_from_u32(key).is_some_and(|k| rl_ref.is_key_pressed(k)))
+                    let pressed = scope.create_function(|_, action: u32| {
+                        Ok(input::action_pressed(rl_ref, action))
                     })?;
                     input_tbl.set("pressed", pressed)?;
-                    let down = scope.create_function(|_, key: u32| {
-                        Ok(key_from_u32(key).is_some_and(|k| rl_ref.is_key_down(k)))
-                    })?;
+                    let down = scope
+                        .create_function(|_, action: u32| Ok(input::action_down(rl_ref, action)))?;
                     input_tbl.set("down", down)?;
 
                     let sfx_tbl: LuaTable = lua.globals().get("sfx")?;

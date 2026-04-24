@@ -58,24 +58,33 @@ sfx = {}
 ---@param name string
 function sfx.play(name) end
 
+---Abstract input actions. Each is a union over keyboard keys, gamepad
+---buttons, and analog-stick directions:
+---
+---- LEFT:    arrow left, A, dpad left, left stick left
+---- RIGHT:   arrow right, D, dpad right, left stick right
+---- UP:      arrow up, W, dpad up, left stick up
+---- DOWN:    arrow down, S, dpad down, left stick down
+---- CONFIRM: Z, J; gamepad south + west face (Xbox A/X, PS Cross/Square)
+---- CANCEL:  X, K; gamepad east + north face (Xbox B/Y, PS Circle/Triangle)
 ---@class Usagi.Input
----@field LEFT  integer
----@field RIGHT integer
----@field UP    integer
----@field DOWN  integer
----@field A     integer
----@field B     integer
+---@field LEFT    integer
+---@field RIGHT   integer
+---@field UP      integer
+---@field DOWN    integer
+---@field CONFIRM integer
+---@field CANCEL  integer
 input = {}
 
----Returns true while the given key is just pressed
----@param key integer  one of input.LEFT / RIGHT / UP / DOWN / A / B
+---Returns true the frame any source bound to `action` first went down.
+---@param action integer  one of input.LEFT / RIGHT / UP / DOWN / A / B
 ---@return boolean
-function input.pressed(key) end
+function input.pressed(action) end
 
----Returns true while the given key is held down
----@param key integer  one of input.LEFT / RIGHT / UP / DOWN / A / B
+---Returns true while any source bound to `action` is held.
+---@param action integer  one of input.LEFT / RIGHT / UP / DOWN / A / B
 ---@return boolean
-function input.down(key) end
+function input.down(action) end
 
 ---Engine-level info. The per-domain APIs (`gfx`, `input`) are top-level
 ---globals, not fields on this table.
