@@ -6,12 +6,10 @@
 mod jukebox;
 mod tilepicker;
 
-use crate::assets::{load_sfx, load_sprites, scan_sfx};
+use crate::assets::{SfxLibrary, SpriteSheet};
 use mlua::prelude::*;
 use sola_raylib::prelude::*;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 /// Fixed window size. Designed against 1280x720 for now; nothing in the
 /// layout is dynamic.
@@ -71,23 +69,18 @@ pub fn run(project_path: Option<&str>) -> LuaResult<()> {
         .map_err(|e| eprintln!("[usagi] audio init failed: {}", e))
         .ok();
 
-    let mut sounds: HashMap<String, Sound<'_>> = HashMap::new();
-    let mut sfx_manifest: HashMap<String, SystemTime> = HashMap::new();
-    if let (Some(a), Some(dir)) = (&audio, &sfx_dir) {
-        sounds = load_sfx(a, dir);
-        sfx_manifest = scan_sfx(dir);
-    }
+    let mut sfx = match (&audio, &sfx_dir) {
+        (Some(a), Some(dir)) => SfxLibrary::load(a, dir),
+        _ => SfxLibrary::empty(),
+    };
 
-    let mut sprites: Option<Texture2D> = sprites_path
+    let mut sprites = sprites_path
         .as_ref()
-        .and_then(|p| load_sprites(&mut rl, &thread, p));
-    let mut sprites_mtime = sprites_path
-        .as_ref()
-        .and_then(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
+        .map(|p| SpriteSheet::load(&mut rl, &thread, p));
 
     let mut state = State {
         active: Tool::Jukebox,
-        jukebox: jukebox::State::new(&sounds),
+        jukebox: jukebox::State::new(&sfx.sounds),
         tilepicker: tilepicker::State::new(),
         toast: None,
     };
@@ -102,22 +95,16 @@ pub fn run(project_path: Option<&str>) -> LuaResult<()> {
             }
         }
 
-        if let (Some(a), Some(dir)) = (&audio, &sfx_dir) {
-            let new_manifest = scan_sfx(dir);
-            if new_manifest != sfx_manifest {
-                sfx_manifest = new_manifest;
-                sounds = load_sfx(a, dir);
-                state.jukebox.refresh_names(&sounds);
-                println!("[usagi] jukebox reloaded sfx ({} sound(s))", sounds.len());
-            }
+        if let (Some(a), Some(dir)) = (&audio, &sfx_dir)
+            && sfx.reload_if_changed(a, dir)
+        {
+            state.jukebox.refresh_names(&sfx.sounds);
+            println!("[usagi] jukebox reloaded sfx ({} sound(s))", sfx.len());
         }
 
-        if let Some(p) = &sprites_path
-            && let Ok(modified) = std::fs::metadata(p).and_then(|m| m.modified())
-            && Some(modified) != sprites_mtime
+        if let (Some(sheet), Some(p)) = (sprites.as_mut(), sprites_path.as_ref())
+            && sheet.reload_if_changed(&mut rl, &thread, p)
         {
-            sprites_mtime = Some(modified);
-            sprites = load_sprites(&mut rl, &thread, p);
             println!("[usagi] tools reloaded {}", p.display());
         }
 
@@ -130,11 +117,11 @@ pub fn run(project_path: Option<&str>) -> LuaResult<()> {
             state.active = Tool::TilePicker;
         }
 
+        let tex = sprites.as_ref().and_then(|s| s.texture());
         match state.active {
-            Tool::Jukebox => jukebox::handle_input(&rl, &mut state.jukebox, &sounds),
+            Tool::Jukebox => jukebox::handle_input(&rl, &mut state.jukebox, &sfx.sounds),
             Tool::TilePicker => {
-                if let Some(msg) =
-                    tilepicker::handle_input(&mut rl, &mut state.tilepicker, sprites.as_ref(), dt)
+                if let Some(msg) = tilepicker::handle_input(&mut rl, &mut state.tilepicker, tex, dt)
                 {
                     state.toast = Some(Toast::new(msg));
                 }
@@ -156,16 +143,13 @@ pub fn run(project_path: Option<&str>) -> LuaResult<()> {
                 Tool::Jukebox => jukebox::draw(
                     &mut d,
                     &mut state.jukebox,
-                    &sounds,
+                    &sfx.sounds,
                     project_path,
                     sfx_dir.as_deref(),
                 ),
-                Tool::TilePicker => tilepicker::draw(
-                    &mut d,
-                    &state.tilepicker,
-                    sprites.as_ref(),
-                    sprites_path.as_deref(),
-                ),
+                Tool::TilePicker => {
+                    tilepicker::draw(&mut d, &state.tilepicker, tex, sprites_path.as_deref())
+                }
             }
 
             if let Some(toast) = &state.toast {
@@ -176,7 +160,7 @@ pub fn run(project_path: Option<&str>) -> LuaResult<()> {
         // Auto-play on selection change (covers mouse click into the
         // list_view which we can't intercept until after the draw returns).
         if state.active == Tool::Jukebox {
-            jukebox::auto_play(&mut state.jukebox, &sounds);
+            jukebox::auto_play(&mut state.jukebox, &sfx.sounds);
         }
     }
 

@@ -68,6 +68,8 @@ pub fn record_err(state: &mut Option<String>, label: &str, result: LuaResult<()>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::input::key_from_u32;
+    use crate::palette::palette;
 
     #[test]
     fn setup_installs_expected_globals() {
@@ -111,5 +113,118 @@ mod tests {
         let mut state = Some("previous".to_string());
         record_err(&mut state, "_update", Ok(()));
         assert_eq!(state.as_deref(), Some("previous"));
+    }
+
+    /// Every `gfx.COLOR_*` constant must map to a real palette() entry.
+    /// Guards against adding a new color constant without teaching
+    /// `palette()`, which would silently render as magenta.
+    #[test]
+    fn every_gfx_color_maps_to_a_distinct_palette_entry() {
+        let lua = Lua::new();
+        setup_api(&lua).unwrap();
+        let gfx: LuaTable = lua.globals().get("gfx").unwrap();
+
+        let magenta = palette(i32::MAX); // known sentinel color
+        let mut indices: Vec<i32> = Vec::new();
+
+        for pair in gfx.pairs::<String, i32>() {
+            let (name, idx) = pair.unwrap();
+            if !name.starts_with("COLOR_") {
+                continue;
+            }
+            let c = palette(idx);
+            assert!(
+                (c.r, c.g, c.b) != (magenta.r, magenta.g, magenta.b),
+                "{name}={idx} falls through to the magenta sentinel in palette()",
+            );
+            indices.push(idx);
+        }
+
+        assert!(
+            indices.len() >= 16,
+            "expected at least 16 COLOR_* constants, got {}",
+            indices.len()
+        );
+
+        let mut sorted = indices.clone();
+        sorted.sort();
+        let unique = sorted.len();
+        sorted.dedup();
+        assert_eq!(
+            unique,
+            sorted.len(),
+            "duplicate COLOR_* indices in setup_api"
+        );
+    }
+
+    /// Every `input.*` constant must be recognised by `key_from_u32`.
+    /// Guards against adding a new input key without teaching
+    /// `key_from_u32`, which would make `input.down(input.X)` always false.
+    #[test]
+    fn every_input_constant_round_trips_through_key_from_u32() {
+        let lua = Lua::new();
+        setup_api(&lua).unwrap();
+        let input: LuaTable = lua.globals().get("input").unwrap();
+        let mut checked = 0;
+        for pair in input.pairs::<String, u32>() {
+            let (name, code) = pair.unwrap();
+            assert!(
+                key_from_u32(code).is_some(),
+                "input.{name} = {code} is not recognised by key_from_u32",
+            );
+            checked += 1;
+        }
+        assert!(
+            checked >= 6,
+            "expected at least 6 input.* keys, got {checked}"
+        );
+    }
+
+    /// A minimal Lua script exercises the registered API surface without
+    /// erroring. Covers the per-frame scope closures by registering stub
+    /// implementations of the runtime functions.
+    #[test]
+    fn script_can_call_full_api_under_scope() {
+        let lua = Lua::new();
+        setup_api(&lua).unwrap();
+
+        lua.scope(|scope| {
+            let gfx: LuaTable = lua.globals().get("gfx")?;
+            gfx.set("clear", scope.create_function(|_, _c: i32| Ok(()))?)?;
+            gfx.set(
+                "rect",
+                scope.create_function(|_, _a: (f32, f32, f32, f32, i32)| Ok(()))?,
+            )?;
+            gfx.set(
+                "text",
+                scope.create_function(|_, _a: (String, f32, f32, i32)| Ok(()))?,
+            )?;
+            gfx.set(
+                "spr",
+                scope.create_function(|_, _a: (i32, f32, f32)| Ok(()))?,
+            )?;
+
+            let input: LuaTable = lua.globals().get("input")?;
+            input.set("pressed", scope.create_function(|_, _k: u32| Ok(false))?)?;
+            input.set("down", scope.create_function(|_, _k: u32| Ok(false))?)?;
+
+            let sfx: LuaTable = lua.globals().get("sfx")?;
+            sfx.set("play", scope.create_function(|_, _n: String| Ok(()))?)?;
+
+            lua.load(
+                r#"
+                gfx.clear(gfx.COLOR_BLACK)
+                gfx.rect(10, 20, 30, 40, gfx.COLOR_RED)
+                gfx.text("hi", 0, 0, gfx.COLOR_WHITE)
+                gfx.spr(1, usagi.GAME_W / 2, usagi.GAME_H / 2)
+                assert(type(input.pressed(input.LEFT)) == "boolean")
+                assert(type(input.down(input.A)) == "boolean")
+                sfx.play("missing")
+                "#,
+            )
+            .exec()?;
+            Ok(())
+        })
+        .expect("api smoke script failed");
     }
 }

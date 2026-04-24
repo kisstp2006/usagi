@@ -2,7 +2,7 @@
 //! Lua VM, handles live reload (if `dev` is true), and renders.
 
 use crate::api::{record_err, setup_api};
-use crate::assets::{load_script, load_sfx, load_sprites, scan_sfx};
+use crate::assets::{SfxLibrary, SpriteSheet, load_script};
 use crate::input::key_from_u32;
 use crate::palette::palette;
 use crate::render::{draw_error_overlay, draw_render_target};
@@ -51,21 +51,17 @@ pub fn run(script_path: &str, dev: bool) -> LuaResult<()> {
         .and_then(|m| m.modified())
         .ok();
 
-    let mut sprites: Option<Texture2D> = load_sprites(&mut rl, &thread, &sprites_path);
-    let mut sprites_mtime = std::fs::metadata(&sprites_path)
-        .and_then(|m| m.modified())
-        .ok();
+    let mut sprites = SpriteSheet::load(&mut rl, &thread, &sprites_path);
 
     // Audio is optional. If the device can't be initialised, games still run;
-    // sfx.play just no-ops.
+    // sfx.play just no-ops via SfxLibrary::empty.
     let audio = RaylibAudio::init_audio_device()
         .map_err(|e| eprintln!("[usagi] audio init failed: {}", e))
         .ok();
-    let mut sounds = match &audio {
-        Some(a) => load_sfx(a, &sfx_dir),
-        None => std::collections::HashMap::new(),
+    let mut sfx = match &audio {
+        Some(a) => SfxLibrary::load(a, &sfx_dir),
+        None => SfxLibrary::empty(),
     };
-    let mut sfx_manifest = scan_sfx(&sfx_dir);
 
     // FPS overlay: on by default in dev mode, off in run mode. Toggle with `~`.
     let mut show_fps = dev;
@@ -98,24 +94,16 @@ pub fn run(script_path: &str, dev: bool) -> LuaResult<()> {
             }
 
             // Sprite sheet reload. Drop of the previous Texture2D frees GPU.
-            if let Ok(modified) = std::fs::metadata(&sprites_path).and_then(|m| m.modified())
-                && Some(modified) != sprites_mtime
-            {
-                sprites_mtime = Some(modified);
-                sprites = load_sprites(&mut rl, &thread, &sprites_path);
+            if sprites.reload_if_changed(&mut rl, &thread, &sprites_path) {
                 println!("[usagi] reloaded {}", sprites_path.display());
             }
 
-            // SFX reload: scan the sfx dir, reload the whole map if anything
-            // changed. Scan is cheap (just stats); we only pay for new_sound
-            // when the manifest actually differs.
-            if let Some(ref a) = audio {
-                let new_manifest = scan_sfx(&sfx_dir);
-                if new_manifest != sfx_manifest {
-                    sfx_manifest = new_manifest;
-                    sounds = load_sfx(a, &sfx_dir);
-                    println!("[usagi] reloaded sfx ({} sound(s))", sounds.len());
-                }
+            // SFX reload. Scan is cheap (just stats); we only pay for
+            // new_sound when the manifest actually differs.
+            if let Some(a) = &audio
+                && sfx.reload_if_changed(a, &sfx_dir)
+            {
+                println!("[usagi] reloaded sfx ({} sound(s))", sfx.len());
             }
         }
 
@@ -161,7 +149,7 @@ pub fn run(script_path: &str, dev: bool) -> LuaResult<()> {
         // doesn't kill the session.
         if let Some(ref update_fn) = update {
             let rl_ref = &rl;
-            let sounds_ref = &sounds;
+            let sfx_ref = &sfx;
             record_err(
                 &mut last_error,
                 "_update",
@@ -178,9 +166,7 @@ pub fn run(script_path: &str, dev: bool) -> LuaResult<()> {
 
                     let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
                     let play = scope.create_function(|_, name: String| {
-                        if let Some(sound) = sounds_ref.get(&name) {
-                            sound.play();
-                        }
+                        sfx_ref.play(&name);
                         Ok(())
                     })?;
                     sfx_tbl.set("play", play)?;
@@ -198,8 +184,8 @@ pub fn run(script_path: &str, dev: bool) -> LuaResult<()> {
             let mut d_rt = rl.begin_texture_mode(&thread, &mut rt);
             if let Some(ref draw_fn) = draw {
                 let d_rt_cell = std::cell::RefCell::new(&mut d_rt);
-                let sprites_ref = sprites.as_ref();
-                let sounds_ref = &sounds;
+                let sprites_ref = sprites.texture();
+                let sfx_ref = &sfx;
                 record_err(
                     &mut last_error,
                     "_draw",
@@ -274,9 +260,7 @@ pub fn run(script_path: &str, dev: bool) -> LuaResult<()> {
 
                         let sfx_tbl: LuaTable = lua.globals().get("sfx")?;
                         let play = scope.create_function(|_, name: String| {
-                            if let Some(sound) = sounds_ref.get(&name) {
-                                sound.play();
-                            }
+                            sfx_ref.play(&name);
                             Ok(())
                         })?;
                         sfx_tbl.set("play", play)?;
