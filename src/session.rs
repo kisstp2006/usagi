@@ -12,23 +12,44 @@ use crate::{GAME_HEIGHT, GAME_WIDTH};
 use mlua::prelude::*;
 use sola_raylib::prelude::*;
 
+/// User-visible engine config returned by `_config()`. Read once before the
+/// window opens. All fields are optional; missing fields fall back to
+/// engine defaults.
+#[derive(Default)]
+struct Config {
+    title: Option<String>,
+}
+
+/// Calls the user's `_config()` if defined and reads supported fields out
+/// of its return table. `_config()` raising or returning a non-table is
+/// surfaced via `last_error` so the user sees it on the overlay; missing
+/// fields silently fall back to defaults.
+fn read_config(lua: &Lua, last_error: &mut Option<String>) -> Config {
+    let mut config = Config::default();
+    let Ok(config_fn) = lua.globals().get::<LuaFunction>("_config") else {
+        return config;
+    };
+    match config_fn.call::<LuaTable>(()) {
+        Ok(tbl) => {
+            if let Ok(t) = tbl.get::<String>("title") {
+                config.title = Some(t);
+            }
+        }
+        Err(e) => {
+            let msg = format!("_config: {}", e);
+            eprintln!("[usagi] {}", msg);
+            *last_error = Some(msg);
+        }
+    }
+    config
+}
+
 /// Runs a Usagi game session. The `vfs` supplies the script, sprites, and
 /// sfx (either from disk or a fused bundle). When `dev` is true AND the
 /// vfs supports reload, files are re-read on mtime change. F5 always
 /// resets state via `_init()`.
 pub fn run(vfs: &dyn VirtualFs, dev: bool) -> crate::Result<()> {
     let reload = dev && vfs.supports_reload();
-
-    let (mut rl, thread) = sola_raylib::init()
-        .size((GAME_WIDTH * 2.) as i32, (GAME_HEIGHT * 2.) as i32)
-        .highdpi()
-        .resizable()
-        .title("USAGI")
-        .build();
-    rl.set_target_fps(60);
-    let mut rt: RenderTexture2D = rl
-        .load_render_texture(&thread, GAME_WIDTH as u32, GAME_HEIGHT as u32)
-        .unwrap();
 
     let lua = Lua::new();
     setup_api(&lua)?;
@@ -37,7 +58,23 @@ pub fn run(vfs: &dyn VirtualFs, dev: bool) -> crate::Result<()> {
     // successful reload or F5 reset.
     let mut last_error: Option<String> = None;
 
+    // Load the script chunk first so callbacks (including _config) are
+    // defined. We need _config's return value before the window opens.
     record_err(&mut last_error, "initial load", load_script(&lua, vfs));
+
+    let config = read_config(&lua, &mut last_error);
+    let title = config.title.unwrap_or_else(|| "USAGI".to_string());
+
+    let (mut rl, thread) = sola_raylib::init()
+        .size((GAME_WIDTH * 2.) as i32, (GAME_HEIGHT * 2.) as i32)
+        .highdpi()
+        .resizable()
+        .title(&title)
+        .build();
+    rl.set_target_fps(60);
+    let mut rt: RenderTexture2D = rl
+        .load_render_texture(&thread, GAME_WIDTH as u32, GAME_HEIGHT as u32)
+        .unwrap();
 
     if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
         record_err(&mut last_error, "_init", init.call::<()>(()));
@@ -278,4 +315,75 @@ pub fn run(vfs: &dyn VirtualFs, dev: bool) -> crate::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_returns_title_field() {
+        let lua = Lua::new();
+        setup_api(&lua).unwrap();
+        lua.load(
+            r#"
+            function _config()
+              return { title = "Hello, Usagi!" }
+            end
+            "#,
+        )
+        .exec()
+        .unwrap();
+        let mut err = None;
+        let config = read_config(&lua, &mut err);
+        assert_eq!(config.title.as_deref(), Some("Hello, Usagi!"));
+        assert!(err.is_none());
+    }
+
+    #[test]
+    fn missing_config_returns_defaults() {
+        let lua = Lua::new();
+        setup_api(&lua).unwrap();
+        let mut err = None;
+        let config = read_config(&lua, &mut err);
+        assert!(config.title.is_none());
+        assert!(err.is_none());
+    }
+
+    #[test]
+    fn config_with_no_title_field_returns_default_title() {
+        let lua = Lua::new();
+        setup_api(&lua).unwrap();
+        lua.load("function _config() return {} end").exec().unwrap();
+        let mut err = None;
+        let config = read_config(&lua, &mut err);
+        assert!(config.title.is_none());
+        assert!(err.is_none());
+    }
+
+    #[test]
+    fn config_runtime_error_is_recorded() {
+        let lua = Lua::new();
+        setup_api(&lua).unwrap();
+        lua.load(r#"function _config() error("bad config") end"#)
+            .exec()
+            .unwrap();
+        let mut err = None;
+        let _ = read_config(&lua, &mut err);
+        let stored = err.expect("error should have been recorded");
+        assert!(stored.starts_with("_config: "), "got: {stored}");
+        assert!(stored.contains("bad config"), "got: {stored}");
+    }
+
+    #[test]
+    fn config_returning_non_table_is_recorded() {
+        let lua = Lua::new();
+        setup_api(&lua).unwrap();
+        lua.load(r#"function _config() return 42 end"#)
+            .exec()
+            .unwrap();
+        let mut err = None;
+        let _ = read_config(&lua, &mut err);
+        assert!(err.is_some());
+    }
 }

@@ -6,6 +6,10 @@ local MSG = "Hello, Usagi!"
 local TEXT_W = 52
 local TEXT_H = 8
 
+function _config()
+  return { title = "Hello, Usagi!" }
+end
+
 function _init()
   x = 40
   y = 30

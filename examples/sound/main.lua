@@ -1,3 +1,7 @@
+function _config()
+  return { title = "Sound" }
+end
+
 function _update(dt)
   if input.pressed(input.CONFIRM) then
     sfx.play("jump")

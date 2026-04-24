@@ -2,6 +2,10 @@
 -- fresh nil bindings each save. Keep mutable state in globals (assigned
 -- only in _init); keep constants local. F5 calls _init to reset.
 
+function _config()
+  return { title = "Input" }
+end
+
 function _init()
   state = {
     x = 20,

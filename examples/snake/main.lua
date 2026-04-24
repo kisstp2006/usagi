@@ -7,6 +7,10 @@ local COLS = 32 -- usagi.GAME_W / CELL
 local ROWS = 18 -- usagi.GAME_H / CELL
 local TICK = 0.12
 
+function _config()
+  return { title = "Snake" }
+end
+
 local function die()
   sfx.play("explosion")
   state.alive = false

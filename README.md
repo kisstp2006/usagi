@@ -40,10 +40,23 @@ While developing Usagi itself, replace `usagi` with `cargo run --` (for example
 
 Define any of these as globals; Usagi calls them:
 
+- `_config()` — optional. Called **once at startup, before the window opens**;
+  returns a config table. Currently supports `title` (defaults to "USAGI").
 - `_init()` — once at start, and when the user presses **F5**. Put state setup
   here.
 - `_update(dt)` — each frame, before draw. `dt` is seconds since last frame.
 - `_draw(dt)` — each frame, after update. `dt` same as above.
+
+```lua
+function _config()
+  return { title = "Snake" }
+end
+```
+
+`_config()` runs before the runtime is fully alive (the window doesn't exist
+yet), so its return value is **read once at startup and cached**. Editing
+`_config()` while the game is running won't update the title or any future
+config field on save; restart the session to pick up changes.
 
 ### `gfx`
 

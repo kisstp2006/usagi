@@ -93,6 +93,16 @@ function input.down(action) end
 ---@field GAME_H number  game render height in pixels
 usagi = {}
 
+---Config table returned by `_config()`. All fields optional; missing
+---fields fall back to engine defaults.
+---@class Usagi.Config
+---@field title? string  window title (default: "USAGI")
+
+---Optional. Returns engine config read once before the window opens.
+---Omit if the defaults are fine.
+---@return Usagi.Config?
+function _config() end
+
 ---Called once when the game starts. Use for loading assets and initializing state.
 function _init() end
 

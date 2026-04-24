@@ -5,6 +5,10 @@ local SPR = {
   BULLET_SM = 4,
 }
 
+function _config()
+  return { title = "Sprites" }
+end
+
 local function clamp(value, min, max)
   if value > max then
     return max
