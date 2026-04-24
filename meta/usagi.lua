@@ -2,9 +2,24 @@
 -- Usagi API stubs for lua-language-server.
 -- Declarations only; this file is never executed by the runtime.
 
+---Pico-8 palette, indices 0-15.
 ---@class Usagi.Gfx
----@field COLOR_BLACK integer
----@field COLOR_WHITE integer
+---@field COLOR_BLACK        integer  0
+---@field COLOR_DARK_BLUE    integer  1
+---@field COLOR_DARK_PURPLE  integer  2
+---@field COLOR_DARK_GREEN   integer  3
+---@field COLOR_BROWN        integer  4
+---@field COLOR_DARK_GRAY    integer  5
+---@field COLOR_LIGHT_GRAY   integer  6
+---@field COLOR_WHITE        integer  7
+---@field COLOR_RED          integer  8
+---@field COLOR_ORANGE       integer  9
+---@field COLOR_YELLOW       integer  10
+---@field COLOR_GREEN        integer  11
+---@field COLOR_BLUE         integer  12
+---@field COLOR_INDIGO       integer  13
+---@field COLOR_PINK         integer  14
+---@field COLOR_PEACH        integer  15
 gfx = {}
 
 ---Clears the screen to the given color.
@@ -26,6 +41,14 @@ function gfx.text(text, x, y, color) end
 ---@param color  integer  a gfx.COLOR_* constant
 function gfx.rect(x, y, w, h, color) end
 
+---Draws a 16×16 sprite from the loaded sheet at (x, y). The sheet is
+---`sprites.png` next to the game's main .lua; indices run left-to-right,
+---top-to-bottom. Alpha-channel pixels render as transparent.
+---@param index integer  one-based sprite index (1 = top-left cell)
+---@param x     number
+---@param y     number
+function gfx.spr(index, x, y) end
+
 ---@class Usagi.Input
 ---@field LEFT  integer
 ---@field RIGHT integer
@@ -45,9 +68,9 @@ function input.pressed(key) end
 ---@return boolean
 function input.down(key) end
 
+---Engine-level info. The per-domain APIs (`gfx`, `input`) are top-level
+---globals, not fields on this table.
 ---@class Usagi
----@field gfx    Usagi.Gfx
----@field input  Usagi.Input
 ---@field GAME_W number  game render width in pixels
 ---@field GAME_H number  game render height in pixels
 usagi = {}

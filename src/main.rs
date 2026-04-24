@@ -46,12 +46,29 @@ fn draw_render_target(
     );
 }
 
-/// converts integer color into Color enum
+/// Maps a palette index (0–15) to an RGBA color. Values outside the palette
+/// return magenta as an obvious "unknown color" sentinel.
+///
+/// Palette is Pico-8's — see `setup_api` for the `gfx.COLOR_*` names.
 fn palette(c: i32) -> Color {
     match c {
-        0 => Color::BLACK,
-        7 => Color::WHITE,
-        _ => Color::MAGENTA,
+        0 => Color::new(0, 0, 0, 255),        // black
+        1 => Color::new(29, 43, 83, 255),     // dark blue
+        2 => Color::new(126, 37, 83, 255),    // dark purple
+        3 => Color::new(0, 135, 81, 255),     // dark green
+        4 => Color::new(171, 82, 54, 255),    // brown
+        5 => Color::new(95, 87, 79, 255),     // dark gray
+        6 => Color::new(194, 195, 199, 255),  // light gray
+        7 => Color::new(255, 241, 232, 255),  // white
+        8 => Color::new(255, 0, 77, 255),     // red
+        9 => Color::new(255, 163, 0, 255),    // orange
+        10 => Color::new(255, 236, 39, 255),  // yellow
+        11 => Color::new(0, 228, 54, 255),    // green
+        12 => Color::new(41, 173, 255, 255),  // blue
+        13 => Color::new(131, 118, 156, 255), // indigo
+        14 => Color::new(255, 119, 168, 255), // pink
+        15 => Color::new(255, 204, 170, 255), // peach
+        _ => Color::new(255, 0, 255, 255),    // magenta (unknown)
     }
 }
 
@@ -75,6 +92,64 @@ fn key_from_u32(k: u32) -> Option<KeyboardKey> {
 fn load_script(lua: &Lua, path: &str) -> LuaResult<()> {
     let source = std::fs::read_to_string(path).map_err(LuaError::external)?;
     lua.load(&source).set_name(path).exec()
+}
+
+/// Resolves the CLI arg to a concrete script file. Accepts any of:
+///   - path to a `.lua` file
+///   - path to a directory containing `main.lua`
+///   - path without extension that has a sibling `.lua` file
+///
+/// Errors with a helpful message if none match.
+fn resolve_script_path(arg: &str) -> Result<String, String> {
+    let path = std::path::Path::new(arg);
+    if path.is_dir() {
+        let main = path.join("main.lua");
+        if main.exists() {
+            return main
+                .to_str()
+                .map(String::from)
+                .ok_or_else(|| format!("non-utf8 path: {}", main.display()));
+        }
+        return Err(format!(
+            "no main.lua found in directory '{}'. Create a main.lua there, or pass a .lua file directly.",
+            path.display()
+        ));
+    }
+    if path.is_file() {
+        return Ok(arg.to_string());
+    }
+    let with_lua = path.with_extension("lua");
+    if with_lua.is_file() {
+        return with_lua
+            .to_str()
+            .map(String::from)
+            .ok_or_else(|| format!("non-utf8 path: {}", with_lua.display()));
+    }
+    Err(format!(
+        "script not found: '{}'. Pass a .lua file, a directory with main.lua, or a name with a sibling .lua.",
+        arg
+    ))
+}
+
+/// Tries to load the sprite sheet (sprites.png next to the script). Returns
+/// None on any failure — missing file is not an error, a decode failure
+/// prints to stderr.
+fn load_sprites(
+    rl: &mut RaylibHandle,
+    thread: &RaylibThread,
+    path: &std::path::Path,
+) -> Option<Texture2D> {
+    if !path.exists() {
+        return None;
+    }
+    let path_str = path.to_str()?;
+    match rl.load_texture(thread, path_str) {
+        Ok(tex) => Some(tex),
+        Err(e) => {
+            eprintln!("[usagi] failed to load sprites {}: {}", path.display(), e);
+            None
+        }
+    }
 }
 
 /// Records a Lua error: prints to stderr and stores the message so it can
@@ -146,7 +221,21 @@ fn draw_error_overlay(d: &mut RaylibDrawHandle, err: &str, screen_w: i32, screen
 fn setup_api(lua: &Lua) -> LuaResult<()> {
     let gfx = lua.create_table()?;
     gfx.set("COLOR_BLACK", 0)?;
+    gfx.set("COLOR_DARK_BLUE", 1)?;
+    gfx.set("COLOR_DARK_PURPLE", 2)?;
+    gfx.set("COLOR_DARK_GREEN", 3)?;
+    gfx.set("COLOR_BROWN", 4)?;
+    gfx.set("COLOR_DARK_GRAY", 5)?;
+    gfx.set("COLOR_LIGHT_GRAY", 6)?;
     gfx.set("COLOR_WHITE", 7)?;
+    gfx.set("COLOR_RED", 8)?;
+    gfx.set("COLOR_ORANGE", 9)?;
+    gfx.set("COLOR_YELLOW", 10)?;
+    gfx.set("COLOR_GREEN", 11)?;
+    gfx.set("COLOR_BLUE", 12)?;
+    gfx.set("COLOR_INDIGO", 13)?;
+    gfx.set("COLOR_PINK", 14)?;
+    gfx.set("COLOR_PEACH", 15)?;
     lua.globals().set("gfx", gfx)?;
 
     let input = lua.create_table()?;
@@ -158,9 +247,10 @@ fn setup_api(lua: &Lua) -> LuaResult<()> {
     input.set("B", KeyboardKey::KEY_X as u32)?;
     lua.globals().set("input", input)?;
 
+    // `gfx` and `input` are top-level globals (see above). The `usagi` table
+    // is reserved for engine-level info — runtime constants, current frame
+    // stats, etc. Not a namespace for the per-domain APIs.
     let usagi = lua.create_table()?;
-    usagi.set("gfx", lua.globals().get::<LuaTable>("gfx")?)?;
-    usagi.set("input", lua.globals().get::<LuaTable>("input")?)?;
     usagi.set("GAME_W", GAME_WIDTH)?;
     usagi.set("GAME_H", GAME_HEIGHT)?;
     lua.globals().set("usagi", usagi)?;
@@ -169,9 +259,19 @@ fn setup_api(lua: &Lua) -> LuaResult<()> {
 }
 
 fn main() -> LuaResult<()> {
-    let script_path = std::env::args()
+    let script_arg = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "examples/hello_usagi.lua".to_string());
+    let script_path = match resolve_script_path(&script_arg) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("[usagi] {}", e);
+            std::process::exit(1);
+        }
+    };
+    // Sprite sheet convention: `sprites.png` in the same directory as the
+    // script. Optional — games without a PNG just have no sprites loaded.
+    let sprites_path = std::path::Path::new(&script_path).with_file_name("sprites.png");
 
     let (mut rl, thread) = sola_raylib::init()
         .size((GAME_WIDTH * 2.) as i32, (GAME_HEIGHT * 2.) as i32)
@@ -204,6 +304,11 @@ fn main() -> LuaResult<()> {
     let mut update: Option<LuaFunction> = lua.globals().get("_update").ok();
     let mut draw: Option<LuaFunction> = lua.globals().get("_draw").ok();
     let mut last_modified = std::fs::metadata(&script_path)
+        .and_then(|m| m.modified())
+        .ok();
+
+    let mut sprites: Option<Texture2D> = load_sprites(&mut rl, &thread, &sprites_path);
+    let mut sprites_mtime = std::fs::metadata(&sprites_path)
         .and_then(|m| m.modified())
         .ok();
 
@@ -241,6 +346,16 @@ fn main() -> LuaResult<()> {
                     last_error = Some(msg);
                 }
             }
+        }
+
+        // Sprite sheet live reload: save in your image editor, see new pixels
+        // next frame. Drop of the previous Texture2D frees its GPU memory.
+        if let Ok(modified) = std::fs::metadata(&sprites_path).and_then(|m| m.modified())
+            && Some(modified) != sprites_mtime
+        {
+            sprites_mtime = Some(modified);
+            sprites = load_sprites(&mut rl, &thread, &sprites_path);
+            println!("[usagi] reloaded {}", sprites_path.display());
         }
 
         // Dev shortcut: F5 runs _init() to wipe game state. Paired with the
@@ -298,6 +413,7 @@ fn main() -> LuaResult<()> {
             let mut d_rt = rl.begin_texture_mode(&thread, &mut rt);
             if let Some(ref draw_fn) = draw {
                 let d_rt_cell = std::cell::RefCell::new(&mut d_rt);
+                let sprites_ref = sprites.as_ref();
                 record_err(
                     &mut last_error,
                     "_draw",
@@ -330,9 +446,45 @@ fn main() -> LuaResult<()> {
                                 Ok(())
                             },
                         )?;
+                        let spr = scope.create_function(|_, (idx, x, y): (i32, f32, f32)| {
+                            // 1-based indexing to match Lua conventions
+                            // (ipairs, t[1], string.sub). Sprite 1 is the
+                            // top-left cell of the sheet.
+                            if idx < 1 {
+                                return Ok(());
+                            }
+                            let idx0 = idx - 1;
+                            if let Some(tex) = sprites_ref {
+                                const CELL: i32 = 16;
+                                let cols = tex.width / CELL;
+                                if cols <= 0 {
+                                    return Ok(());
+                                }
+                                let col = idx0 % cols;
+                                let row = idx0 / cols;
+                                if row * CELL >= tex.height {
+                                    return Ok(());
+                                }
+                                let source = Rectangle {
+                                    x: (col * CELL) as f32,
+                                    y: (row * CELL) as f32,
+                                    width: CELL as f32,
+                                    height: CELL as f32,
+                                };
+                                let pos = Vector2::new(x.round(), y.round());
+                                d_rt_cell.borrow_mut().draw_texture_rec(
+                                    tex,
+                                    source,
+                                    pos,
+                                    Color::WHITE,
+                                );
+                            }
+                            Ok(())
+                        })?;
                         gfx_tbl.set("clear", clear)?;
                         gfx_tbl.set("text", text)?;
                         gfx_tbl.set("rect", rect)?;
+                        gfx_tbl.set("spr", spr)?;
                         draw_fn.call::<()>(dt)?;
                         Ok(())
                     }),

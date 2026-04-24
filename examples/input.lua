@@ -1,10 +1,6 @@
 -- Live reload preserves globals but re-runs the chunk, so locals get
 -- fresh nil bindings each save. Keep mutable state in globals (assigned
--- only in _init); keep constants and module aliases local. F5 calls
--- _init to reset.
-
-local input = usagi.input
-local gfx = usagi.gfx
+-- only in _init); keep constants local. F5 calls _init to reset.
 
 function _init()
   state = {
