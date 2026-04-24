@@ -95,8 +95,8 @@ pub fn run(vfs: &dyn VirtualFs, dev: bool) -> crate::Result<()> {
         None => SfxLibrary::empty(),
     };
 
-    // FPS overlay: on by default in dev mode, off in run mode. Toggle with `~`.
-    let mut show_fps = dev;
+    // FPS overlay: off by default. Toggle with `~`.
+    let mut show_fps = false;
 
     while !rl.window_should_close() {
         // Live reload is gated on `dev` AND the vfs supporting it. A fused
