@@ -77,14 +77,67 @@ fn load_script(lua: &Lua, path: &str) -> LuaResult<()> {
     lua.load(&source).set_name(path).exec()
 }
 
-/// Logs a Lua error with a label and swallows it. Used around every call
-/// into user Lua so that a typo, nil-call, or runtime error doesn't tear
-/// down the process — the session stays alive and the user can fix the
-/// file and save to reload.
-fn log_err(label: &str, result: LuaResult<()>) {
+/// Records a Lua error: prints to stderr and stores the message so it can
+/// be displayed on-screen. Wraps every call into user Lua so a typo /
+/// nil-call / runtime error doesn't tear down the process.
+fn record_err(state: &mut Option<String>, label: &str, result: LuaResult<()>) {
     if let Err(e) = result {
-        eprintln!("[usagi] {} error: {}", label, e);
+        let msg = format!("{}: {}", label, e);
+        eprintln!("[usagi] {}", msg);
+        *state = Some(msg);
     }
+}
+
+/// Draws a full-width error banner at the bottom of the window. Shown only
+/// when user Lua has errored; cleared on successful reload or F5 reset.
+fn draw_error_overlay(d: &mut RaylibDrawHandle, err: &str, screen_w: i32, screen_h: i32) {
+    const PADDING: i32 = 12;
+    const TITLE_SIZE: i32 = 20;
+    const MSG_SIZE: i32 = 16;
+    const LINE_H: i32 = MSG_SIZE + 4;
+    const FOOTER_SIZE: i32 = 14;
+    const MAX_LINES: usize = 8;
+
+    let lines: Vec<&str> = err.lines().collect();
+    let shown = lines.len().min(MAX_LINES) as i32;
+    let truncated = lines.len() > MAX_LINES;
+    let footer = "fix & save to reload   \u{00b7}   F5 to reset";
+
+    let content_h =
+        TITLE_SIZE + 8 + shown * LINE_H + if truncated { LINE_H } else { 0 } + 10 + FOOTER_SIZE;
+    let box_h = content_h + PADDING * 2;
+    let box_y = screen_h - box_h;
+
+    d.draw_rectangle(0, box_y, screen_w, box_h, Color::new(30, 10, 10, 235));
+    d.draw_rectangle(0, box_y, screen_w, 2, Color::new(220, 60, 60, 255));
+
+    let mut y = box_y + PADDING;
+    d.draw_text(
+        "Lua error",
+        PADDING,
+        y,
+        TITLE_SIZE,
+        Color::new(220, 60, 60, 255),
+    );
+    y += TITLE_SIZE + 8;
+
+    for line in lines.iter().take(MAX_LINES) {
+        d.draw_text(line, PADDING, y, MSG_SIZE, Color::WHITE);
+        y += LINE_H;
+    }
+    if truncated {
+        d.draw_text("\u{2026}", PADDING, y, MSG_SIZE, Color::WHITE);
+        y += LINE_H;
+    }
+
+    y += 10;
+    d.draw_text(
+        footer,
+        PADDING,
+        y,
+        FOOTER_SIZE,
+        Color::new(180, 180, 180, 255),
+    );
 }
 
 /// Install constant tables (`gfx`, `input`, `usagi`) on the Lua globals.
@@ -133,12 +186,20 @@ fn main() -> LuaResult<()> {
 
     let lua = Lua::new();
     setup_api(&lua)?;
+    // Latest Lua error, if any — rendered as an on-screen overlay and cleared
+    // on successful reload or F5 reset.
+    let mut last_error: Option<String> = None;
+
     // Initial load errors are non-fatal: boot with an empty session and let
     // the user fix the file + save to trigger live reload.
-    log_err("initial load", load_script(&lua, &script_path));
+    record_err(
+        &mut last_error,
+        "initial load",
+        load_script(&lua, &script_path),
+    );
 
     if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
-        log_err("_init", init.call::<()>(()));
+        record_err(&mut last_error, "_init", init.call::<()>(()));
     }
     let mut update: Option<LuaFunction> = lua.globals().get("_update").ok();
     let mut draw: Option<LuaFunction> = lua.globals().get("_draw").ok();
@@ -172,8 +233,13 @@ fn main() -> LuaResult<()> {
                     println!("[usagi] reloaded {}", script_path);
                     update = lua.globals().get("_update").ok();
                     draw = lua.globals().get("_draw").ok();
+                    last_error = None;
                 }
-                Err(e) => eprintln!("[usagi] reload failed: {}", e),
+                Err(e) => {
+                    let msg = format!("reload: {}", e);
+                    eprintln!("[usagi] {}", msg);
+                    last_error = Some(msg);
+                }
             }
         }
 
@@ -184,8 +250,15 @@ fn main() -> LuaResult<()> {
             && let Ok(init) = lua.globals().get::<LuaFunction>("_init")
         {
             match init.call::<()>(()) {
-                Ok(()) => println!("[usagi] reset (F5)"),
-                Err(e) => eprintln!("[usagi] _init error: {}", e),
+                Ok(()) => {
+                    println!("[usagi] reset (F5)");
+                    last_error = None;
+                }
+                Err(e) => {
+                    let msg = format!("_init: {}", e);
+                    eprintln!("[usagi] {}", msg);
+                    last_error = Some(msg);
+                }
             }
         }
 
@@ -199,7 +272,8 @@ fn main() -> LuaResult<()> {
         // so a broken _update doesn't kill the session.
         if let Some(ref update_fn) = update {
             let rl_ref = &rl;
-            log_err(
+            record_err(
+                &mut last_error,
                 "_update",
                 lua.scope(|scope| {
                     let input_tbl: LuaTable = lua.globals().get("input")?;
@@ -224,7 +298,8 @@ fn main() -> LuaResult<()> {
             let mut d_rt = rl.begin_texture_mode(&thread, &mut rt);
             if let Some(ref draw_fn) = draw {
                 let d_rt_cell = std::cell::RefCell::new(&mut d_rt);
-                log_err(
+                record_err(
+                    &mut last_error,
                     "_draw",
                     lua.scope(|scope| {
                         let gfx_tbl: LuaTable = lua.globals().get("gfx")?;
@@ -266,11 +341,14 @@ fn main() -> LuaResult<()> {
             d_rt.draw_text(&format!("FPS: {}", fps), 0, 0, 8, Color::GREEN);
         }
 
-        // Blit render target to screen
+        // Blit render target to screen, then overlay any active Lua error.
         {
             let mut d = rl.begin_drawing(&thread);
             d.clear_background(Color::BLACK);
             draw_render_target(&mut d, &mut rt, screen_w, screen_h, true);
+            if let Some(ref err) = last_error {
+                draw_error_overlay(&mut d, err, screen_w, screen_h);
+            }
         }
     }
     Ok(())
