@@ -35,3 +35,4 @@ examples:
     just example input
     just example spr
     just example sound
+    just example snake

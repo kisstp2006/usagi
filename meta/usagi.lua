@@ -77,12 +77,12 @@ function sfx.play(name) end
 input = {}
 
 ---Returns true the frame any source bound to `action` first went down.
----@param action integer  one of input.LEFT / RIGHT / UP / DOWN / A / B
+---@param action integer  one of input.LEFT / RIGHT / UP / DOWN / CONFIRM / CANCEL
 ---@return boolean
 function input.pressed(action) end
 
 ---Returns true while any source bound to `action` is held.
----@param action integer  one of input.LEFT / RIGHT / UP / DOWN / A / B
+---@param action integer  one of input.LEFT / RIGHT / UP / DOWN / CONFIRM / CANCEL
 ---@return boolean
 function input.down(action) end
 
