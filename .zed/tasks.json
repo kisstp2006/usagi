@@ -1,0 +1,12 @@
+[
+  {
+    "label": "just run",
+    "command": "just",
+    "args": ["run"],
+  },
+  {
+    "label": "just ok",
+    "command": "just",
+    "args": ["ok"],
+  },
+]
