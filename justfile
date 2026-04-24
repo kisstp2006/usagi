@@ -2,9 +2,8 @@ run:
     cargo run
 
 ok:
-    cargo check --all-targets
     cargo fmt --check
-    cargo clippy
+    cargo clippy --all-targets -- -D warnings
 
 fmt:
     cargo fmt

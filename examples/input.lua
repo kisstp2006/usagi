@@ -1,8 +1,11 @@
+-- Live reload preserves globals but re-runs the chunk, so locals get
+-- fresh nil bindings each save. Keep mutable state in globals (assigned
+-- only in _init); keep constants and module aliases local. F5 calls
+-- _init to reset.
+
 local input = usagi.input
 local gfx = usagi.gfx
-local state = {}
 
--- runs once at the game start, useful for loading assets, etc.
 function _init()
   state = {
     x = 20,
@@ -11,7 +14,6 @@ function _init()
   }
 end
 
--- runs once every frame (60 FPS)
 function _update(dt)
   if input.pressed(input.LEFT) then
     state.x = state.x - state.spd * dt

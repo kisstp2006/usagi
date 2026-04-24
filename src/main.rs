@@ -69,6 +69,14 @@ fn key_from_u32(k: u32) -> Option<KeyboardKey> {
     }
 }
 
+/// Reads the script file and executes it on the given Lua VM, redefining
+/// the `_init` / `_update` / `_draw` globals. Used for both initial load
+/// and live reload.
+fn load_script(lua: &Lua, path: &str) -> LuaResult<()> {
+    let source = std::fs::read_to_string(path).map_err(LuaError::external)?;
+    lua.load(&source).set_name(path).exec()
+}
+
 /// Install constant tables (`gfx`, `input`, `usagi`) on the Lua globals.
 /// Per-frame closures (gfx.clear, input.pressed, ...) are installed inside
 /// `lua.scope` blocks since they borrow frame-local Rust state.
@@ -100,8 +108,7 @@ fn setup_api(lua: &Lua) -> LuaResult<()> {
 fn main() -> LuaResult<()> {
     let script_path = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "examples/hello_usagi/main.lua".to_string());
-    let source = std::fs::read_to_string(&script_path).expect("failed to read script");
+        .unwrap_or_else(|| "examples/hello_usagi.lua".to_string());
 
     let (mut rl, thread) = sola_raylib::init()
         .size((GAME_WIDTH * 2.) as i32, (GAME_HEIGHT * 2.) as i32)
@@ -116,15 +123,60 @@ fn main() -> LuaResult<()> {
 
     let lua = Lua::new();
     setup_api(&lua)?;
-    lua.load(&source).set_name(&script_path).exec()?;
+    load_script(&lua, &script_path)?;
 
     if let Ok(init) = lua.globals().get::<LuaFunction>("_init") {
         init.call::<()>(())?;
     }
-    let update: Option<LuaFunction> = lua.globals().get("_update").ok();
-    let draw: Option<LuaFunction> = lua.globals().get("_draw").ok();
+    let mut update: Option<LuaFunction> = lua.globals().get("_update").ok();
+    let mut draw: Option<LuaFunction> = lua.globals().get("_draw").ok();
+    let mut last_modified = std::fs::metadata(&script_path)
+        .and_then(|m| m.modified())
+        .ok();
 
     while !rl.window_should_close() {
+        // Live reload: on mtime change, re-exec the script on the same Lua
+        // VM so _update / _draw pick up the new definitions next frame.
+        //
+        // State is intentionally preserved — we do NOT call _init() here.
+        // The point of live reload during prototyping is to tweak logic
+        // without losing the current play session (player position, enemy
+        // state, etc.). F5 below is the explicit "reset" escape hatch.
+        //
+        // Caveat for script authors: top-level `local` bindings get fresh
+        // nil values on re-exec, so callbacks that captured them will see
+        // nil. State that needs to survive reload should live in globals
+        // (or use `x = x or <init>` to preserve across re-exec).
+        //
+        // Reload errors are logged, not fatal — the previous callbacks keep
+        // running so a half-saved or syntactically-broken file can't kill
+        // the dev session.
+        if let Ok(modified) = std::fs::metadata(&script_path).and_then(|m| m.modified())
+            && Some(modified) != last_modified
+        {
+            last_modified = Some(modified);
+            match load_script(&lua, &script_path) {
+                Ok(()) => {
+                    println!("[usagi] reloaded {}", script_path);
+                    update = lua.globals().get("_update").ok();
+                    draw = lua.globals().get("_draw").ok();
+                }
+                Err(e) => eprintln!("[usagi] reload failed: {}", e),
+            }
+        }
+
+        // Dev shortcut: F5 runs _init() to wipe game state. Paired with the
+        // preserve-state live-reload above; this is the one way to actually
+        // reset during a session without restarting the process.
+        if rl.is_key_pressed(KeyboardKey::KEY_F5)
+            && let Ok(init) = lua.globals().get::<LuaFunction>("_init")
+        {
+            match init.call::<()>(()) {
+                Ok(()) => println!("[usagi] reset (F5)"),
+                Err(e) => eprintln!("[usagi] _init error: {}", e),
+            }
+        }
+
         let dt = rl.get_frame_time();
         let screen_w = rl.get_screen_width();
         let screen_h = rl.get_screen_height();

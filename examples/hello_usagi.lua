@@ -1,8 +1,10 @@
+-- Live reload preserves globals but re-runs the chunk, so locals get
+-- fresh nil bindings each save. Keep mutable state in globals (assigned
+-- only in _init); keep constants local. F5 calls _init to reset.
+
 local MSG = "Hello, Usagi!"
 local TEXT_W = 52
 local TEXT_H = 8
-
-local x, y, vx, vy
 
 function _init()
   x = 40
