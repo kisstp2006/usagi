@@ -13,6 +13,7 @@ fmt:
     cargo fmt
 
 # Open the Usagi tools window. Optional path is forwarded to `usagi tools`.
+
 # Example: `just tools examples/spr`.
 tools *args:
     cargo run -- tools {{ args }}
@@ -30,6 +31,7 @@ install:
 
 # Run a specific example in dev mode (live-reload on).
 # Works for flat files (`just example hello_usagi`) and directory examples
+
 # (`just example spr` -> examples/spr/main.lua).
 example name:
     cargo run -- dev examples/{{ name }}
@@ -37,6 +39,7 @@ example name:
 examples:
     just example hello_usagi
     just example input
+    just example input_test
     just example spr
     just example sound
     just example snake
