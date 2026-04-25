@@ -41,7 +41,9 @@ While developing Usagi itself, replace `usagi` with `cargo run --` (for example
 Define any of these as globals; Usagi calls them:
 
 - `_config()` — optional. Called **once at startup, before the window opens**;
-  returns a config table. Currently supports `title` (defaults to "USAGI").
+  returns a config table. Currently supports `title` (defaults to "Usagi") and
+  `pixel_perfect` (defaults to `true`, set `false` to stretch the game to
+  fill the window instead of integer-scaling with bars).
 - `_init()` — once at start, and when the user presses **F5**. Put state setup
   here.
 - `_update(dt)` — each frame, before draw. `dt` is seconds since last frame.
@@ -49,7 +51,7 @@ Define any of these as globals; Usagi calls them:
 
 ```lua
 function _config()
-  return { title = "Snake" }
+  return { title = "Snake", pixel_perfect = true }
 end
 ```
 
@@ -105,9 +107,10 @@ analog sticks; track stick state in Lua if you need that.
 Engine-level info.
 
 - `usagi.GAME_W`, `usagi.GAME_H` — game render dimensions (320, 180).
-- `usagi.IS_DEV` — `true` when running under `usagi dev`; `false` under `usagi
-  run` and inside compiled binaries. Useful for gating debug overlays, dev
-  menus, verbose logging:
+- `usagi.IS_DEV` — `true` when running under `usagi dev`; `false` under
+  `usagi
+  run` and inside compiled binaries. Useful for gating debug overlays,
+  dev menus, verbose logging:
 
   ```lua
   if usagi.IS_DEV then

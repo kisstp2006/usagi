@@ -97,7 +97,8 @@ usagi = {}
 ---Config table returned by `_config()`. All fields optional; missing
 ---fields fall back to engine defaults.
 ---@class Usagi.Config
----@field title? string  window title (default: "USAGI")
+---@field title? string  window title (default: "Usagi")
+---@field pixel_perfect? boolean integer scaling with bars (default: true)
 
 ---Optional. Returns engine config read once before the window opens.
 ---Omit if the defaults are fine.

@@ -15,9 +15,22 @@ use sola_raylib::prelude::*;
 /// User-visible engine config returned by `_config()`. Read once before the
 /// window opens. All fields are optional; missing fields fall back to
 /// engine defaults.
-#[derive(Default)]
 struct Config {
-    title: Option<String>,
+    /// title shown in the window chrome and app switcher
+    title: String,
+    /// when true, the render target is upscaled at integer multiples (with
+    /// black bars on non-multiple window sizes); when false, it stretches
+    /// to fill the window. Defaults to `true` for crisp pixel art.
+    pixel_perfect: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            title: "Usagi".to_string(),
+            pixel_perfect: true,
+        }
+    }
 }
 
 /// Calls the user's `_config()` if defined and reads supported fields out
@@ -32,7 +45,10 @@ fn read_config(lua: &Lua, last_error: &mut Option<String>) -> Config {
     match config_fn.call::<LuaTable>(()) {
         Ok(tbl) => {
             if let Ok(t) = tbl.get::<String>("title") {
-                config.title = Some(t);
+                config.title = t;
+            }
+            if let Ok(t) = tbl.get::<bool>("pixel_perfect") {
+                config.pixel_perfect = t;
             }
         }
         Err(e) => {
@@ -68,13 +84,12 @@ pub fn run(vfs: &dyn VirtualFs, dev: bool) -> crate::Result<()> {
     record_err(&mut last_error, "initial load", load_script(&lua, vfs));
 
     let config = read_config(&lua, &mut last_error);
-    let title = config.title.unwrap_or_else(|| "Usagi".to_string());
 
     let (mut rl, thread) = sola_raylib::init()
         .size((GAME_WIDTH * 2.) as i32, (GAME_HEIGHT * 2.) as i32)
         .highdpi()
         .resizable()
-        .title(&title)
+        .title(&config.title)
         .build();
     rl.set_target_fps(60);
     let mut rt: RenderTexture2D = rl
@@ -313,7 +328,7 @@ pub fn run(vfs: &dyn VirtualFs, dev: bool) -> crate::Result<()> {
         {
             let mut d = rl.begin_drawing(&thread);
             d.clear_background(Color::BLACK);
-            draw_render_target(&mut d, &mut rt, screen_w, screen_h, true);
+            draw_render_target(&mut d, &mut rt, screen_w, screen_h, config.pixel_perfect);
             if let Some(ref err) = last_error {
                 draw_error_overlay(&mut d, err, screen_w, screen_h);
             }
@@ -341,8 +356,30 @@ mod tests {
         .unwrap();
         let mut err = None;
         let config = read_config(&lua, &mut err);
-        assert_eq!(config.title.as_deref(), Some("Hello, Usagi!"));
+        assert_eq!(config.title, "Hello, Usagi!");
         assert!(err.is_none());
+    }
+
+    #[test]
+    fn config_returns_pixel_perfect_field() {
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+        lua.load("function _config() return { pixel_perfect = false } end")
+            .exec()
+            .unwrap();
+        let mut err = None;
+        let config = read_config(&lua, &mut err);
+        assert!(!config.pixel_perfect);
+        assert!(err.is_none());
+    }
+
+    #[test]
+    fn missing_config_pixel_perfect_defaults_to_true() {
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+        let mut err = None;
+        let config = read_config(&lua, &mut err);
+        assert!(config.pixel_perfect, "default should be pixel-perfect on");
     }
 
     #[test]
@@ -351,7 +388,7 @@ mod tests {
         setup_api(&lua, false).unwrap();
         let mut err = None;
         let config = read_config(&lua, &mut err);
-        assert!(config.title.is_none());
+        assert_eq!(config.title, "Usagi");
         assert!(err.is_none());
     }
 
@@ -362,7 +399,7 @@ mod tests {
         lua.load("function _config() return {} end").exec().unwrap();
         let mut err = None;
         let config = read_config(&lua, &mut err);
-        assert!(config.title.is_none());
+        assert_eq!(config.title, "Usagi");
         assert!(err.is_none());
     }
 
