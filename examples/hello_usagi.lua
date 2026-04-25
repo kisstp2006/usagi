@@ -41,4 +41,8 @@ end
 function _draw(dt)
   gfx.clear(gfx.COLOR_BLACK)
   gfx.text(MSG, x, y, gfx.COLOR_WHITE)
+
+  if usagi.IS_DEV then
+    gfx.text("DEV mode!", 10, 10, gfx.COLOR_PINK)
+  end
 end

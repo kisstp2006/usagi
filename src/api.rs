@@ -13,7 +13,7 @@ use mlua::prelude::*;
 /// gfx.clear, sfx.play) are registered inside `lua.scope` blocks in the main
 /// loop so their closures can borrow the current frame's draw handle, audio
 /// device, etc.
-pub fn setup_api(lua: &Lua) -> LuaResult<()> {
+pub fn setup_api(lua: &Lua, dev: bool) -> LuaResult<()> {
     let gfx = lua.create_table()?;
     gfx.set("COLOR_BLACK", 0)?;
     gfx.set("COLOR_DARK_BLUE", 1)?;
@@ -51,6 +51,10 @@ pub fn setup_api(lua: &Lua) -> LuaResult<()> {
     let usagi = lua.create_table()?;
     usagi.set("GAME_W", GAME_WIDTH)?;
     usagi.set("GAME_H", GAME_HEIGHT)?;
+    // True when running under `usagi dev`. False for `usagi run` and
+    // fused/compiled binaries. Lets games gate debug overlays, dev menus,
+    // verbose logging, etc.
+    usagi.set("IS_DEV", dev)?;
     lua.globals().set("usagi", usagi)?;
 
     Ok(())
@@ -76,7 +80,7 @@ mod tests {
     #[test]
     fn setup_installs_expected_globals() {
         let lua = Lua::new();
-        setup_api(&lua).unwrap();
+        setup_api(&lua, false).unwrap();
 
         let gfx: LuaTable = lua.globals().get("gfx").unwrap();
         let input: LuaTable = lua.globals().get("input").unwrap();
@@ -98,6 +102,19 @@ mod tests {
 
         assert_eq!(usagi.get::<f32>("GAME_W").unwrap(), GAME_WIDTH);
         assert_eq!(usagi.get::<f32>("GAME_H").unwrap(), GAME_HEIGHT);
+    }
+
+    #[test]
+    fn is_dev_reflects_setup_arg() {
+        let lua = Lua::new();
+        setup_api(&lua, true).unwrap();
+        let usagi: LuaTable = lua.globals().get("usagi").unwrap();
+        assert!(usagi.get::<bool>("IS_DEV").unwrap());
+
+        let lua = Lua::new();
+        setup_api(&lua, false).unwrap();
+        let usagi: LuaTable = lua.globals().get("usagi").unwrap();
+        assert!(!usagi.get::<bool>("IS_DEV").unwrap());
     }
 
     #[test]
@@ -124,7 +141,7 @@ mod tests {
     #[test]
     fn every_gfx_color_maps_to_a_distinct_palette_entry() {
         let lua = Lua::new();
-        setup_api(&lua).unwrap();
+        setup_api(&lua, false).unwrap();
         let gfx: LuaTable = lua.globals().get("gfx").unwrap();
 
         let magenta = palette(i32::MAX); // known sentinel color
@@ -167,7 +184,7 @@ mod tests {
     #[test]
     fn every_input_constant_is_a_valid_action() {
         let lua = Lua::new();
-        setup_api(&lua).unwrap();
+        setup_api(&lua, false).unwrap();
         let input: LuaTable = lua.globals().get("input").unwrap();
         let mut checked = 0;
         for pair in input.pairs::<String, u32>() {
@@ -190,7 +207,7 @@ mod tests {
     #[test]
     fn script_can_call_full_api_under_scope() {
         let lua = Lua::new();
-        setup_api(&lua).unwrap();
+        setup_api(&lua, false).unwrap();
 
         lua.scope(|scope| {
             let gfx: LuaTable = lua.globals().get("gfx")?;

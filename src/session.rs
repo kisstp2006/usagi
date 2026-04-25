@@ -52,7 +52,7 @@ pub fn run(vfs: &dyn VirtualFs, dev: bool) -> crate::Result<()> {
     let reload = dev && vfs.supports_reload();
 
     let lua = Lua::new();
-    setup_api(&lua)?;
+    setup_api(&lua, dev)?;
 
     // Latest Lua error, if any. Rendered as an on-screen overlay; cleared on
     // successful reload or F5 reset.
@@ -324,7 +324,7 @@ mod tests {
     #[test]
     fn config_returns_title_field() {
         let lua = Lua::new();
-        setup_api(&lua).unwrap();
+        setup_api(&lua, false).unwrap();
         lua.load(
             r#"
             function _config()
@@ -343,7 +343,7 @@ mod tests {
     #[test]
     fn missing_config_returns_defaults() {
         let lua = Lua::new();
-        setup_api(&lua).unwrap();
+        setup_api(&lua, false).unwrap();
         let mut err = None;
         let config = read_config(&lua, &mut err);
         assert!(config.title.is_none());
@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn config_with_no_title_field_returns_default_title() {
         let lua = Lua::new();
-        setup_api(&lua).unwrap();
+        setup_api(&lua, false).unwrap();
         lua.load("function _config() return {} end").exec().unwrap();
         let mut err = None;
         let config = read_config(&lua, &mut err);
@@ -364,7 +364,7 @@ mod tests {
     #[test]
     fn config_runtime_error_is_recorded() {
         let lua = Lua::new();
-        setup_api(&lua).unwrap();
+        setup_api(&lua, false).unwrap();
         lua.load(r#"function _config() error("bad config") end"#)
             .exec()
             .unwrap();
@@ -378,7 +378,7 @@ mod tests {
     #[test]
     fn config_returning_non_table_is_recorded() {
         let lua = Lua::new();
-        setup_api(&lua).unwrap();
+        setup_api(&lua, false).unwrap();
         lua.load(r#"function _config() return 42 end"#)
             .exec()
             .unwrap();

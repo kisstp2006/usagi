@@ -89,8 +89,9 @@ function input.down(action) end
 ---Engine-level info. The per-domain APIs (`gfx`, `input`) are top-level
 ---globals, not fields on this table.
 ---@class Usagi
----@field GAME_W number  game render width in pixels
----@field GAME_H number  game render height in pixels
+---@field GAME_W number   game render width in pixels
+---@field GAME_H number   game render height in pixels
+---@field IS_DEV boolean  true under `usagi dev`; false for `usagi run` and compiled binaries
 usagi = {}
 
 ---Config table returned by `_config()`. All fields optional; missing

@@ -105,6 +105,15 @@ analog sticks; track stick state in Lua if you need that.
 Engine-level info.
 
 - `usagi.GAME_W`, `usagi.GAME_H` — game render dimensions (320, 180).
+- `usagi.IS_DEV` — `true` when running under `usagi dev`; `false` under `usagi
+  run` and inside compiled binaries. Useful for gating debug overlays, dev
+  menus, verbose logging:
+
+  ```lua
+  if usagi.IS_DEV then
+    gfx.text("debug", 0, 0, gfx.COLOR_GREEN)
+  end
+  ```
 
 ### Indexing
 
