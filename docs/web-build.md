@@ -8,7 +8,7 @@ the web. If the web build breaks, start here.
 - Stable Rust (currently 1.95.0 verified). No `rust-toolchain.toml` pin.
 - Emscripten via emsdk. `setup-emscripten.sh` installs to `$XDG_DATA_HOME/emsdk`
   (or `~/.local/share/emsdk`); source `~/.local/share/emsdk/emsdk_env.sh` to put
-  `emcc` on `PATH`.
+  `emcc` on `PATH`. On macOS, you can do `brew install emscripten`.
 - emcc 5.0.6 verified.
 
 Build with `just build-web` (or `just build-web-release`).

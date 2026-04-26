@@ -14,16 +14,37 @@ the public domain.
 
 ## Install
 
-The only way to install Usagi currently is to have the Rust toolchain installed
-and use:
+The only way to install Usagi currently is to have
+[the Rust toolchain installed](https://rustup.rs/) and use:
 
 ```
 cargo install --git https://github.com/brettchalupa/usagi.git
 ```
 
-This will be made easier in the future.
+_Installing Usagi will be made easier in the future._
 
-## Project layout
+## Hello, Usagi
+
+You now have the `usagi` CLI that you can run from your shell (`usagi.exe` on
+Windows). Create `hello.lua` and run `usagi dev hello.lua`. Then edit the new
+file by adding:
+
+```lua
+function _draw()
+  gfx.clear(gfx.COLOR_WHITE)
+  gfx.text("Hello, Usagi!", 10, 10, gfx.COLOR_BLACK)
+end
+```
+
+When you save `hello.lua`, the Usagi runtime automatically reloads it. Make
+changes to the text and see it live update.
+
+In most traditional game development environments, you need to restart your
+engine game after making changes. Usagi lets you focus on coding and making art
+without losing the current game state, allowing for much faster iteration
+cycles.
+
+## Project Layout
 
 A Usagi game is either a single `.lua` file or a directory with a `main.lua` in
 it. Optional assets live alongside:
@@ -207,8 +228,11 @@ Lua code).
 
 ## Compile
 
-`usagi compile <path>` packages a game for distribution. By default it produces
-all artifacts in one export directory:
+`usagi compile <path>` packages a game for distribution. **NOTE:** `compile`
+will be improved soon to support cross-platform compilation. Right now it only
+supports compiling for the current operating system. Web builds won't work
+unless you install Usagi from source and follow the Web Builds section below. By
+default it produces all artifacts in one export directory:
 
 ```
 $ usagi compile examples/snake
