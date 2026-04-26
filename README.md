@@ -10,8 +10,6 @@ Usagi is built with [Rust](https://rust-lang.org/) and
 :warning: Usagi is very early in development and not stable. APIs and commands
 will break. :warning:
 
-[usagiengine.com](https://usagiengine.com)
-
 Usagi is made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to
 the public domain.
 
