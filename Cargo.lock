@@ -661,7 +661,8 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 [[package]]
 name = "sola-raylib"
 version = "6.0.0"
-source = "git+https://github.com/brettchalupa/sola-raylib.git#b0e05e73283acdd910b1765565a3bd4bc3f21239"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d82b933a72beda3cdbe47d09447551a47eef6124734742773be634258ca0a42"
 dependencies = [
  "cfg-if",
  "paste",
@@ -673,7 +674,8 @@ dependencies = [
 [[package]]
 name = "sola-raylib-sys"
 version = "6.0.0"
-source = "git+https://github.com/brettchalupa/sola-raylib.git#b0e05e73283acdd910b1765565a3bd4bc3f21239"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d1229ef69ed7e2573585263bccc9d6e7ddf27850718b49a9e37448bd4221432"
 dependencies = [
  "bindgen",
  "cc",
@@ -744,7 +746,7 @@ checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "usagi"
-version = "0.1.0"
+version = "0.1.0-dev.0"
 dependencies = [
  "clap",
  "mlua",

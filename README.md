@@ -1,10 +1,16 @@
 # Usagi - Rapid 2D Game Prototyping Tool
 
-Usagi is a tool for quickly prototyping simple games with Lua. It features
-live-reloading as your change your game code. Usagi is built with Rust. Its API
-is inspired by Pico-8.
+Usagi is a simple 2D game engine for quickly prototyping simple games with Lua
+5.4. It features live-reloading as your change your game code and assets. Usagi
+is built with Rust. Its API is inspired by Pico-8.
 
-Uses Lua 5.4.
+:warning: Usagi is very early in development and not stable. APIs and commands
+will break. :warning:
+
+[usagiengine.com](https://usagiengine.com)
+
+Usagi is made by [Brett Chalupa](https://brettmakesgames.com) and dedicated to
+the public domain.
 
 ## Install
 
@@ -120,7 +126,7 @@ Engine-level info.
 - `usagi.GAME_W`, `usagi.GAME_H` — game render dimensions (320, 180).
 - `usagi.IS_DEV` — `true` when running under `usagi dev`; `false` under
   `usagi
-  run` and inside compiled binaries. Useful for gating debug overlays,
+run` and inside compiled binaries. Useful for gating debug overlays,
   dev menus, verbose logging:
 
   ```lua
@@ -249,7 +255,7 @@ Notes:
   points back to an appended bundle. A `.usagi` file is the same bundle bytes
   without the footer.
 
-## Web build
+## Web Builds
 
 Usagi compiles to wasm via emscripten so games can run in a browser. See
 [docs/web-build.md](docs/web-build.md) for setup, the build/dev loop, debugging
@@ -270,3 +276,8 @@ tips, and the (non-obvious) wasm exception ABI requirements.
 - Love2D
 - Playdate SDK
 - DragonRuby Game Toolkit (DRGTK)
+
+## (Un)license
+
+Usagi's source code is dedicated to the public domain. You can see the full
+details in [UNLICENSE](./UNLICENSE).

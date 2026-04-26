@@ -1,13 +1,19 @@
 [package]
 name = "usagi"
-version = "0.1.0"
+version = "0.1.0-dev.0"
 edition = "2024"
+license = "Unlicense"
 authors = ["Brett Chalupa <brett@brettchalupa.com>"]
+homepage = "https://usagiengine.com"
+description = "Simple 2D game engine for rapid prototyping with Lua, featuring live reload; powered by Rust and sola-raylib"
+repository = "https://github.com/brettchalupa/usagi"
+keywords = ["gamedev", "lua"]
+categories = ["game-engines"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 mlua = { version = "0.11", features = ["lua54", "vendored"] }
-sola-raylib = { git = "https://github.com/brettchalupa/sola-raylib.git" }
+sola-raylib = { version = "6.0" }
 
 [dev-dependencies]
 tempfile = "3"
