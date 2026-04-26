@@ -70,10 +70,15 @@ fn read_config(lua: &Lua, last_error: &mut Option<String>) -> Config {
 /// All long-lived session state. Constructed once, frame() called once per
 /// iteration. Owning everything (rather than holding references) lets us
 /// pass a stable pointer to emscripten_set_main_loop_arg.
+///
+/// Field order matters: structs drop fields in declaration order, so GPU
+/// resources (`rt`, `sprites`) must come before `rl`. Otherwise `rl`'s
+/// `Drop` calls `CloseWindow` first, killing the GL context, and the
+/// subsequent texture unloads segfault.
 struct Session {
-    rl: RaylibHandle,
-    thread: RaylibThread,
+    // GPU resources: dropped first, while the GL context is still alive.
     rt: RenderTexture2D,
+    sprites: SpriteSheet,
 
     lua: Lua,
     update: Option<LuaFunction>,
@@ -85,7 +90,6 @@ struct Session {
     /// not a real leak (process exit reclaims it).
     audio: Option<&'static RaylibAudio>,
     sfx: SfxLibrary<'static>,
-    sprites: SpriteSheet,
 
     last_error: Option<String>,
     last_modified: Option<SystemTime>,
@@ -94,6 +98,11 @@ struct Session {
 
     vfs: Box<dyn VirtualFs>,
     reload: bool,
+
+    // Raylib handle last: drops after every GPU resource above, so
+    // `CloseWindow` runs only once textures/render targets are unloaded.
+    thread: RaylibThread,
+    rl: RaylibHandle,
 }
 
 impl Session {
@@ -165,21 +174,21 @@ impl Session {
         };
 
         Ok(Self {
-            rl,
-            thread,
             rt,
+            sprites,
             lua,
             update,
             draw,
             audio,
             sfx,
-            sprites,
             last_error,
             last_modified,
             show_fps: false,
             config,
             vfs,
             reload,
+            thread,
+            rl,
         })
     }
 
