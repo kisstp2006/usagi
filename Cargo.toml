@@ -9,6 +9,7 @@ description = "Simple 2D game engine for rapid prototyping with Lua, featuring l
 repository = "https://github.com/brettchalupa/usagi"
 keywords = ["gamedev", "lua"]
 categories = ["game-engines"]
+exclude = ["examples", ".zed", "docs", "justfile", "*.sh"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
