@@ -1,8 +1,11 @@
-# Usagi - Rapid 2D Game Prototyping Tool
+# Usagi - Simple, Rapid 2D Game Engine
 
 Usagi is a simple 2D game engine for quickly prototyping simple games with Lua
-5.4. It features live-reloading as your change your game code and assets. Usagi
-is built with Rust. Its API is inspired by Pico-8.
+5.4. It features live-reloading as your change your game code and assets. Its
+API is clear, consistent, and familiar.
+
+Usagi is built with [Rust](https://rust-lang.org/) and
+[sola-raylib](https://crates.io/crates/sola-raylib).
 
 :warning: Usagi is very early in development and not stable. APIs and commands
 will break. :warning:
@@ -44,6 +47,20 @@ engine game after making changes. Usagi lets you focus on coding and making art
 without losing the current game state, allowing for much faster iteration
 cycles.
 
+## Project Goal
+
+Usagi does not aim to be anything more than a rapid development engine for
+simple, lower res 2D games. It doesn't intend to support mobile platforms or
+touch or VR. It doesn't aim to replace Love2D or Pico-8 or Picotron. It's not a
+fantasy console. It's a command-line program and suite of tools to help you make
+games.
+
+Usagi is great for those learning game programming. And for those who to use
+something more flexible than Pico-8/Picotron but more constrained than Love2D.
+
+**Why Lua:** Lua is a widely-used language in game programming, and it's quite
+simple yet surprisingly powerful, making it a good fit for Usagi.
+
 ## Project Layout
 
 A Usagi game is either a single `.lua` file or a directory with a `main.lua` in
@@ -71,6 +88,36 @@ Run with:
 
 While developing Usagi itself, replace `usagi` with `cargo run --` (for example
 `cargo run -- dev examples/hello_usagi.lua`).
+
+## Constraints
+
+Usagi embraces a few constraints inspired by Pico-8 and Pyxel to help focus on
+prototyping rather than making polished high-resolution graphics. These may
+change in the future or be configurable.
+
+- **Resolution**: 320px by 180px - 16:9 aspect ratio that scales nicely to
+  common monitor sizes
+- **One Spritesheet**: `sprites.png` is the only image file for textures that
+  can be loaded
+- **Sprite Size**: 16px by 16px - using `gfx.spr` uses the index based on this
+  sized sprite
+- **Limited Colors**: the color palette for drawing are the same as Pico-8 (but
+  with constants for easy reference)
+
+You currently must bring your own sound effects and sprite editor. A sprite
+editor could be nice in the future as part of the `usagi tools`.
+
+## TODO - What's Missing
+
+Here's what Usagi will support as it heads towards 1.0 release:
+
+- `usagi compile` creates exports for all target plaforms (Linux, macOS,
+  Windows, and web)
+- Music playback with looping support
+- More shape primitives
+- Mouse functions and ability to hide cursor
+- Arbitrary source rectangle rendering from the spritesheet
+- Using a different font throughout as I don't love Raylib's default one
 
 ## Lua API
 
@@ -166,7 +213,7 @@ Enum-like constants (palette colors, key codes) keep their conventional
 numbering. `gfx.COLOR_RED` is 8 because that's its Pico-8 number, not because
 it's the 9th color.
 
-## Live reload
+## Live Reload
 
 Usagi watches the running script file and re-executes it when you save. The new
 `_update` and `_draw` take effect on the next frame — your current game state is
@@ -179,7 +226,7 @@ progress.
   off in `run`.
 - Press **Alt+Enter** to toggle borderless fullscreen.
 
-### Writing reload-friendly scripts
+### Writing Reload-Friendly Scripts
 
 The chunk re-executes on save, so any top-level `local` bindings get fresh `nil`
 values each time — callbacks that captured them as upvalues will see `nil` and
