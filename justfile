@@ -1,3 +1,8 @@
+# One-time per-clone setup: point git at .githooks/ so the pre-push hook (which runs `just ok`) fires for everyone working in this repo.
+setup:
+    git config core.hooksPath .githooks
+    @echo "[usagi] git hooks installed (pre-push runs 'just ok')"
+
 # Run all checks and tests
 ok:
     cargo fmt --check

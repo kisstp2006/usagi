@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Runs `just ok` (fmt check, clippy with warnings denied, tests) before
+# pushing. Skip with `git push --no-verify` if you really need to.
+set -euo pipefail
+
+if ! command -v just >/dev/null 2>&1; then
+  echo "pre-push: 'just' not installed; skipping. (cargo install just)" >&2
+  exit 0
+fi
+
+just ok

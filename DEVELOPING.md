@@ -8,6 +8,10 @@ Install Rust: https://rustup.rs
 
 ## Local
 
+After cloning, run `just setup` once. It points git at `.githooks/`, so
+`just ok` runs automatically before every push (skip with `--no-verify` in a
+pinch).
+
 `just ok` runs fmt, clippy, and tests. Run before any commit.
 
 `just example <name>` boots an example in dev mode with live reload.
