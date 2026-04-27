@@ -60,20 +60,22 @@ struct Cli {
 #[cfg(not(target_os = "emscripten"))]
 #[derive(Subcommand)]
 enum Command {
-    /// Run a game (no live-reload).
+    /// Run a game (no live-reload). Defaults to the current directory.
     Run {
-        /// Path to a .lua file or a directory with main.lua.
-        path: String,
+        /// Path to a .lua file or a directory with main.lua. Defaults to ".".
+        path: Option<String>,
     },
-    /// Run a game with live-reload on save. F5 resets state.
+    /// Run a game with live-reload on save. F5 resets state. Defaults to
+    /// the current directory.
     Dev {
-        /// Path to a .lua file or a directory with main.lua.
-        path: String,
+        /// Path to a .lua file or a directory with main.lua. Defaults to ".".
+        path: Option<String>,
     },
-    /// Open the Usagi tools window (jukebox, tile picker).
+    /// Open the Usagi tools window (jukebox, tile picker). Defaults to
+    /// the current directory.
     Tools {
-        /// Optional path to the game project (dir or .lua file). Future
-        /// tools use this to locate sprites.png, sfx/, etc.
+        /// Path to the game project (dir or .lua file). Defaults to ".".
+        /// Tools use this to locate sprites.png, sfx/, etc.
         path: Option<String>,
     },
     /// Inspect or wipe the local template cache.
@@ -81,11 +83,12 @@ enum Command {
         #[command(subcommand)]
         cmd: TemplatesCmd,
     },
-    /// Compile a game into a shippable artifact.
+    /// Compile a game into a shippable artifact. Defaults to the current
+    /// directory.
     Compile {
-        /// Path to a .lua file or a directory with main.lua.
-        path: String,
-        /// Output path. Defaults to `<name>-export/` for `all`,
+        /// Path to a .lua file or a directory with main.lua. Defaults to ".".
+        path: Option<String>,
+        /// Output path. Defaults to `export/` for `all`,
         /// `<name>.usagi` for `bundle`, `<name>-<target>.zip` otherwise.
         #[arg(short, long)]
         output: Option<String>,
@@ -147,9 +150,9 @@ fn main() -> ExitCode {
         }
         let cli = Cli::parse();
         let result = match cli.command {
-            Command::Run { path } => start_session(&path, false),
-            Command::Dev { path } => start_session(&path, true),
-            Command::Tools { path } => tools::run(path.as_deref()),
+            Command::Run { path } => start_session(path.as_deref().unwrap_or("."), false),
+            Command::Dev { path } => start_session(path.as_deref().unwrap_or("."), true),
+            Command::Tools { path } => tools::run(Some(path.as_deref().unwrap_or("."))),
             Command::Templates { cmd } => run_templates_cmd(cmd),
             Command::Compile {
                 path,
@@ -160,7 +163,7 @@ fn main() -> ExitCode {
                 no_cache,
                 web_shell,
             } => compile::run(
-                &path,
+                path.as_deref().unwrap_or("."),
                 output.as_deref(),
                 target,
                 template_path.as_deref(),
