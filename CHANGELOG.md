@@ -3,7 +3,7 @@
 History of Usagi releases and what changed in each release. User-facing notes.
 Doesn't contain updates relating to developing the engine itself.
 
-## v0.1.0-dev.2 - UNRELEASED
+## v0.1.0-dev.2 - Apr 27, 2026
 
 Features:
 
@@ -12,6 +12,7 @@ Features:
 - `gfx.circ(x, y, r, color)` — circle outline
 - `gfx.circ_fill(x, y, r, color)` — filled circle
 - `gfx.line(x1, y1, x2, y2, color)` — line
+- Ctrl + R and Cmd + R hard refresh in `usagi dev`
 
 Fixes:
 
