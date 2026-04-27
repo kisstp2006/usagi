@@ -3,7 +3,9 @@
 History of Usagi releases and what changed in each release. User-facing notes.
 Doesn't contain updates relating to developing the engine itself.
 
-## v0.1.0-dev.3 - UNRELEASED
+## v0.1.0-dev - UNRELEASED
+
+## v0.1.0-rc.3 - Apr 27, 2026
 
 Features:
 
@@ -33,6 +35,8 @@ Breaking:
 Fixes:
 
 - <kbd>Esc</kbd> only quits the game in dev builds, not release builds
+- On desktop, the window's minimum size is the resolution of the game
+  (320x180px)
 
 ## v0.1.0-dev.2 - Apr 27, 2026
 
