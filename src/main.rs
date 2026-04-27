@@ -30,6 +30,8 @@ mod vfs;
 #[cfg(not(target_os = "emscripten"))]
 mod compile;
 #[cfg(not(target_os = "emscripten"))]
+mod init;
+#[cfg(not(target_os = "emscripten"))]
 mod templates;
 
 pub use error::{Error, Result};
@@ -69,6 +71,12 @@ enum Command {
     /// the current directory.
     Dev {
         /// Path to a .lua file or a directory with main.lua. Defaults to ".".
+        path: Option<String>,
+    },
+    /// Bootstrap a new project (main.lua, .luarc.json, .gitignore, LSP
+    /// stubs, embedded docs). Defaults to the current directory.
+    Init {
+        /// Directory to initialize. Defaults to ".". Created if missing.
         path: Option<String>,
     },
     /// Open the Usagi tools window (jukebox, tile picker). Defaults to
@@ -152,6 +160,7 @@ fn main() -> ExitCode {
         let result = match cli.command {
             Command::Run { path } => start_session(path.as_deref().unwrap_or("."), false),
             Command::Dev { path } => start_session(path.as_deref().unwrap_or("."), true),
+            Command::Init { path } => init::run(path.as_deref().unwrap_or(".")),
             Command::Tools { path } => tools::run(Some(path.as_deref().unwrap_or("."))),
             Command::Templates { cmd } => run_templates_cmd(cmd),
             Command::Compile {

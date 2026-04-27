@@ -27,21 +27,40 @@ cargo install --git https://github.com/brettchalupa/usagi.git
 
 _More ways of installing Usagi will be added in the future._
 
+### Upgrading
+
+Replace the `usagi` binary with a newer release. **NOTE:** Usagi is pre-v1.0,
+meaning there's no guarantee of API compatibility between releases right now.
+
+To refresh engine-owned files in a project (the LSP type stubs and the embedded
+docs), delete them and re-run `usagi init` from the project root:
+
+```sh
+rm meta/usagi.lua USAGI.md
+usagi init .
+```
+
+`init` skips files that already exist, so your `main.lua`, `.luarc.json`, and
+`.gitignore` stay untouched. The version stamp at the top of `meta/usagi.lua`
+and `USAGI.md` tells you which `usagi` produced them.
+
 ## Hello, Usagi
 
 You now have the `usagi` CLI that you can run from your shell (`usagi.exe` on
-Windows). Create `hello.lua` and run `usagi dev hello.lua`. Then edit the new
-file by adding:
+Windows). Bootstrap a new project and start it in dev mode:
 
-```lua
-function _draw()
-  gfx.clear(gfx.COLOR_WHITE)
-  gfx.text("Hello, Usagi!", 10, 10, gfx.COLOR_BLACK)
-end
+```sh
+usagi init my_game
+cd my_game
+usagi dev
 ```
 
-When you save `hello.lua`, the Usagi runtime automatically reloads it. Make
-changes to the text and see it live update.
+`init` writes `main.lua` (with stubbed `_init` / `_update` / `_draw`),
+`.luarc.json` for Lua LSP support, `.gitignore`, `meta/usagi.lua` (API type
+stubs), and `USAGI.md` (a copy of these docs).
+
+Edit `main.lua` and save. The Usagi runtime automatically reloads, so your
+changes show up live without losing game state.
 
 In most traditional game development environments, you would need to restart
 your game's executable after making changes. Usagi lets you focus on coding and
@@ -84,6 +103,8 @@ my_game/
 
 Run with:
 
+- `usagi init path/to/new_game` bootstraps a project (main.lua stub,
+  `.luarc.json`, `.gitignore`, LSP stubs, `USAGI.md` docs).
 - `usagi dev path/to/my_game` for live-reload development (script, sprites, and
   sfx reload on save; F5 resets state).
 - `usagi run path/to/my_game` to run without live-reload.

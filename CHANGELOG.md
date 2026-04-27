@@ -5,6 +5,14 @@ Doesn't contain updates relating to developing the engine itself.
 
 ## v0.1.0-dev - UNRELEASED
 
+Features:
+
+- `usagi init [path]` bootstraps a new project. Writes `main.lua` with
+  stubbed callbacks, `.luarc.json` for Lua LSP, `.gitignore`,
+  `meta/usagi.lua` (API type stubs for editor autocomplete), and
+  `USAGI.md` (engine docs). Defaults to the current directory; existing
+  files are skipped, never overwritten.
+
 ## v0.1.0-rc.4 - Apr 27, 2026
 
 Fixes:
