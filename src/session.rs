@@ -150,6 +150,10 @@ impl Session {
         // which requires ASYNCIFY (we deliberately don't link with it).
         #[cfg(not(target_os = "emscripten"))]
         rl.set_target_fps(60);
+        // Don't let resizing shrink the window below the game's native
+        // resolution: smaller than that and `pixel_perfect` falls below 1×.
+        #[cfg(not(target_os = "emscripten"))]
+        rl.set_window_min_size(GAME_WIDTH as i32, GAME_HEIGHT as i32);
         // raylib defaults Esc to quit, which is useful while iterating
         // (`usagi dev`) but a foot-gun for shipped games where a player
         // hitting Esc to dismiss a menu would close the game. Keep it in
