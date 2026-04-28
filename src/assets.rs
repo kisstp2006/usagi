@@ -2,6 +2,7 @@
 //! through the `VirtualFs` trait so they don't know or care whether the
 //! bytes came from disk or from a compiled bundle.
 
+use crate::preprocess::preprocess;
 use crate::vfs::VirtualFs;
 use mlua::prelude::*;
 use sola_raylib::prelude::*;
@@ -16,7 +17,8 @@ pub fn load_script(lua: &Lua, vfs: &dyn VirtualFs) -> LuaResult<()> {
     let bytes = vfs
         .read_script()
         .ok_or_else(|| LuaError::RuntimeError("script not found".to_string()))?;
-    lua.load(&bytes).set_name(vfs.script_name()).exec()
+    let prepared = preprocess(&bytes);
+    lua.load(&prepared).set_name(vfs.script_name()).exec()
 }
 
 /// Replaces `package.searchers` with `[preload, vfs]`. Stock Lua ships
@@ -40,10 +42,13 @@ pub fn install_require(lua: &Lua, vfs: Rc<dyn VirtualFs>) -> LuaResult<()> {
     let searcher = lua.create_function(move |lua, name: String| -> LuaResult<LuaMultiValue> {
         match vfs_for_searcher.read_module(&name) {
             Some((bytes, chunk_name)) => {
+                // Preprocess once at searcher-time so the bytes captured
+                // in the loader closure are already rewritten.
+                let prepared = preprocess(&bytes);
                 let chunk_name_for_loader = chunk_name.clone();
                 let loader = lua.create_function(
                     move |lua, (modname, _chunk): (String, LuaValue)| -> LuaResult<LuaMultiValue> {
-                        lua.load(bytes.as_slice())
+                        lua.load(prepared.as_slice())
                             .set_name(chunk_name_for_loader.as_str())
                             .call(modname)
                     },
@@ -261,6 +266,44 @@ mod tests {
     }
 
     #[test]
+    fn load_script_applies_compound_op_preprocessor() {
+        // End-to-end check: a script using `+=` parses+runs because the
+        // preprocessor rewrites it before `lua.load`.
+        let lua = Lua::new();
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("ops.lua");
+        fs::write(&path, "x = 0\nx += 1\nx += 2\ny = 10\ny *= 3\n").unwrap();
+        let vfs = FsBacked::from_script_path(&path);
+        load_script(&lua, &vfs).unwrap();
+        assert_eq!(lua.globals().get::<i32>("x").unwrap(), 3);
+        assert_eq!(lua.globals().get::<i32>("y").unwrap(), 30);
+    }
+
+    #[test]
+    fn require_loader_applies_compound_op_preprocessor() {
+        // Same as above but for `require`d modules: the preprocessor
+        // must run before the searcher-side `lua.load` too, otherwise
+        // compound ops would only work in main.lua.
+        let lua = Lua::new();
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(
+            root.join("main.lua"),
+            "local m = require 'mod'; result = m.go()",
+        )
+        .unwrap();
+        fs::write(
+            root.join("mod.lua"),
+            "local M = {}\nfunction M.go()\n  local n = 5\n  n += 7\n  return n\nend\nreturn M\n",
+        )
+        .unwrap();
+        let vfs: Rc<dyn VirtualFs> = Rc::new(FsBacked::from_script_path(&root.join("main.lua")));
+        install_require(&lua, vfs.clone()).unwrap();
+        load_script(&lua, vfs.as_ref()).unwrap();
+        assert_eq!(lua.globals().get::<i32>("result").unwrap(), 12);
+    }
+
+    #[test]
     fn load_script_returns_err_on_syntax_error() {
         let lua = Lua::new();
         let dir = TempDir::new().unwrap();
@@ -301,8 +344,11 @@ mod tests {
     }
 
     fn parse_ok(lua: &Lua, path: &std::path::Path) {
-        let src = fs::read_to_string(path).unwrap_or_else(|e| panic!("read {path:?}: {e}"));
-        lua.load(&src)
+        let src = fs::read(path).unwrap_or_else(|e| panic!("read {path:?}: {e}"));
+        // Examples may use compound operators; the runtime applies the
+        // preprocessor before `lua.load`, so the parse test must too.
+        let prepared = preprocess(&src);
+        lua.load(prepared.as_slice())
             .set_name(path.to_str().unwrap())
             .into_function()
             .unwrap_or_else(|e| panic!("parse {path:?}: {e}"));

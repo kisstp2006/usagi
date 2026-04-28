@@ -9,6 +9,9 @@ Features:
 
 - Multiple Lua source files are now supported; use `require("file")` to load
   `file.lua`.
+- Compound assignment operators: `+=`, `-=`, `*=`, `/=`, `%=` are rewritten to
+  plain Lua before parsing, with `runtime.nonstandardSymbol` set in the shipped
+  `.luarc.json` so the language server accepts them.
 
 ## v0.1.0 - Apr 27, 2026
 

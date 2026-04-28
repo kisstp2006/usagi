@@ -19,6 +19,7 @@ mod cli;
 mod error;
 mod input;
 mod palette;
+mod preprocess;
 mod render;
 mod session;
 mod tools;

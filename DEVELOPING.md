@@ -76,6 +76,7 @@ them for spot-checking a PR. For distribution, cut a release.
 3. Bump `version` in `Cargo.toml` and run `cargo update -p usagi` to refresh
    `Cargo.lock` before tagging. The tag should match the manifest version.
 4. Update CHANGELOG.md
+5. `cp README_DEV.md README.md`
 
 ### Tagging
 
