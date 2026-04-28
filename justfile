@@ -24,10 +24,6 @@ fmt:
 tools *args:
     cargo run -- tools {{ args }}
 
-# Export a game to shippable artifacts. Example: `just export examples/snake`.
-export *args:
-    cargo run -- export {{ args }}
-
 [doc("""
 One-time toolchain setup for the web build: emscripten + wasm target +
 a tiny static server.
@@ -117,9 +113,11 @@ example name:
 examples:
     just example hello_usagi
     just example shapes
+    just example demoscene
     just example input
     just example input_test
     just example spr
     just example sound
     just example multifile
+    just example operators
     just example snake

@@ -1,6 +1,6 @@
 # Usagi - Simple 2D Game Engine for Rapid Prototyping
 
-Usagi is a simple 2D game engine for quickly making games with _Lua_* 5.4. It
+Usagi is a simple 2D game engine for quickly making games with **Lua** 5.4. It
 features live-reloading as your change your game code and assets. Its API is
 clear, consistent, and familiar.
 
@@ -162,6 +162,31 @@ Here's what Usagi will support as it heads towards 1.0 release:
 - Arbitrary source rectangle rendering from the spritesheet
 
 ## Lua API
+
+### Compound assignment operators
+
+Usagi runs each `.lua` source through a tiny preprocessor before handing it to
+the Lua VM, adding compound assignment sugar:
+
+| operator | rewrite     |
+| -------- | ----------- |
+| `+=`     | `x = x + y` |
+| `-=`     | `x = x - y` |
+| `*=`     | `x = x * y` |
+| `/=`     | `x = x / y` |
+| `%=`     | `x = x % y` |
+
+```lua
+state.score += 1
+state.timer += dt
+```
+
+Limitations: the rewrite is line-anchored, so `if cond then x += 1 end` is left
+as-is (use longhand). The LHS is duplicated verbatim, so `t[f()] += 1` calls
+`f()` twice — same gotcha as PICO-8's preprocessor.
+
+The shipped `.luarc.json` declares these as nonstandard symbols so the
+lua-language-server stops underlining them as syntax errors.
 
 ### Callbacks
 
