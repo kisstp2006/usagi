@@ -16,6 +16,8 @@ dedicated to the public domain.
 [Quickstart video](https://www.youtube.com/watch?v=0i1wIm6c6Rw),
 [YouTube Playlist](https://www.youtube.com/playlist?list=PL0qDutCc8IQhkbS53etm9xV06XgEb4BEN)
 
+![Rotating cube demo](/website/demo.gif)
+
 ## Install
 
 **Linux, macOS:**
@@ -58,6 +60,8 @@ Latest release: **v1.0.0**.
   default sprite grid, a single `sprites.png` for textures.
 
 Bring your own sound effects, sprite editor, and music tools.
+
+![Menu preview showing Continue, Settings, Clear Save Data, Reset Game, and Quit options](/website/menu.png)
 
 ## Hello, Usagi
 
@@ -1354,6 +1358,8 @@ made with Usagi with custom level parsing code, scene switching, and save data
 tracking.
 
 ## Tools
+
+![Usagi tools window showing the TilePicker selected with monster sprites by Hexany Ives](./website/tools.png)
 
 `usagi tools [path]` opens a 1280×720 window with a tab bar for the available
 tools. The path is optional; pass a project directory (or a `.lua` file) to load
